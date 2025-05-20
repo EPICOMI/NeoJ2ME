@@ -1,1 +1,3 @@
+Creating a J2ME games emulator for the Windows platform.
+
 We already have examples of a J2ME emulator with frontend on Android. But one such application does not seem to exist for Windows 10/11. So the goal is to make a useful and polished J2ME emulator application, with a dedicated frontend that accommodates various developments, in addition to the basic functionality that is promised by the J2ME cores out there. The purpose is to bring J2ME gaming to the unknowledgeable Windows gamers and provide ease-of-use of the software.
