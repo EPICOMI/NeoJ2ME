@@ -1,2 +1,3 @@
 rootProject.name = 'j2me-pc-emu'
 include 'emu-core'
+include 'main-app'

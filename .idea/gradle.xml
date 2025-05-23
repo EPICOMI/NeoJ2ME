@@ -10,6 +10,7 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/emu-core" />
+            <option value="$PROJECT_DIR$/main-app" />
           </set>
         </option>
       </GradleProjectSettings>
