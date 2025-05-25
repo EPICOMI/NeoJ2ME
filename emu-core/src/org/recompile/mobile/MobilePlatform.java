@@ -711,4 +711,11 @@ public class MobilePlatform
 	}
 
 	public void setShowFPS(String show) { showFPS = show; }
+
+	public void stopApp() {
+	}
+
+	public boolean isJarLoaded() {
+	return true; }
+
 }

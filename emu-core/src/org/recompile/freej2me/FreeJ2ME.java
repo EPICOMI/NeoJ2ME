@@ -322,6 +322,9 @@ public class FreeJ2ME
 
 	private static String getFormattedLocation(String loc)
 	{
+		if (loc == null || loc.isEmpty()) {
+			return ""; // Allow empty path to show GUI
+		}
 		if (loc.startsWith("file://") || loc.startsWith("http://") || loc.startsWith("https://"))
 			return loc;
 
@@ -329,7 +332,8 @@ public class FreeJ2ME
 		if(! file.isFile())
 		{
 			Mobile.log(Mobile.LOG_ERROR, FreeJ2ME.class.getPackage().getName() + "." + FreeJ2ME.class.getSimpleName() + ": " + "File not found...");
-			System.exit(0);
+			return "";
+			//System.exit(0);
 		}
 
 		return file.toURI().toString();
