@@ -1030,7 +1030,9 @@ public final class AWTGUI
 
 			else if(a.getActionCommand() == "PauseResume") { MobilePlatform.pauseResumeApp(); }
 
-			else if(a.getActionCommand() == "Exit") { System.exit(0); }
+			// else if(a.getActionCommand() == "Exit") { System.exit(0); }
+
+			else if(a.getActionCommand() == "Exit") { Mobile.getPlatform().stopApp(); main.dispose(); }
 
 			else if(a.getActionCommand() == "AboutMenu") { awtDialogs[1].setLocationRelativeTo(main); awtDialogs[1].setVisible(true); }
 
@@ -1052,7 +1054,8 @@ public final class AWTGUI
 
 			else if (a.getActionCommand() == "CancelResChange") { awtDialogs[0].setVisible(false); }
 
-			else if(a.getActionCommand() == "CloseFreeJ2ME") { System.exit(0); }
+			// else if(a.getActionCommand() == "CloseFreeJ2ME") { System.exit(0); }
+			else if(a.getActionCommand() == "CloseFreeJ2ME") { Mobile.getPlatform().stopApp(); main.dispose(); }
 
 			else if(a.getActionCommand() == "RestartLater") { awtDialogs[3].setVisible(false); }
 

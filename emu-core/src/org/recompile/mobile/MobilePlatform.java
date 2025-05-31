@@ -630,14 +630,26 @@ public class MobilePlatform
 	********* Graphics ********
 */
 
-	public final void flushGraphics(PlatformImage img, int x, int y, int width, int height)
+	public void flushGraphics(PlatformImage img, int x, int y, int width, int height)
 	{
-		if(!isPaused) 
+		if (!isPaused)
 		{
-			gc.flushGraphics(img, x, y, width, height);
-		
-			if(!showFPS.equals("Off")) { showFPS();}
-			painter.run(); // Update the frontend's painter first to then process inputs
+			if (gc == null) {
+				Mobile.log(Mobile.LOG_ERROR, "MobilePlatform: Graphics context is null, reinitializing...");
+				if (lcd != null) {
+					gc = Mobile.isDoJa ? lcd.getDoJaGraphics() : lcd.getMIDPGraphics();
+				} else {
+					Mobile.log(Mobile.LOG_ERROR, "MobilePlatform: LCD is null, cannot reinitialize GC");
+					return;
+				}
+			}
+			try {
+				gc.flushGraphics(img, x, y, width, height);
+				if (!showFPS.equals("Off")) { showFPS(); }
+				painter.run();
+			} catch (Exception e) {
+				Mobile.log(Mobile.LOG_ERROR, "MobilePlatform: Flush graphics failed: " + e.getMessage());
+			}
 		}
 	}
 
@@ -713,9 +725,50 @@ public class MobilePlatform
 	public void setShowFPS(String show) { showFPS = show; }
 
 	public void stopApp() {
+		try {
+			if (loader != null && Mobile.midlet != null) {
+				Mobile.log(Mobile.LOG_INFO, "MobilePlatform: Destroying MIDlet...");
+				Mobile.midlet.destroyApp(true);
+				Mobile.midlet = null;
+			}
+			if (Mobile.getDisplay() != null) {
+				Mobile.log(Mobile.LOG_INFO, "MobilePlatform: Clearing display...");
+				Mobile.getDisplay().setCurrent(null);
+			}
+			loader = null;
+			displayable = null;
+			isPaused = false;
+			keyState = 0;
+			vodafoneKeyState = 0;
+			DoJaKeyState = 0;
+			Arrays.fill(pressedKeys, false);
+		} catch (Exception e) {
+			Mobile.log(Mobile.LOG_ERROR, "MobilePlatform: Stop app failed: " + e.getMessage());
+		}
+	}
+
+	public void reset()
+	{
+		Mobile.log(Mobile.LOG_INFO, "MobilePlatform: Resetting platform...");
+		try {
+			stopApp();
+			// Clear graphics buffer
+			if (lcd != null) {
+				Graphics2D g2d = lcd.getCanvas().createGraphics();
+				g2d.setColor(Color.BLACK);
+				g2d.fillRect(0, 0, lcdWidth, lcdHeight);
+				g2d.dispose();
+			}
+			//gc = null;
+			lcd = new PlatformImage(lcdWidth, lcdHeight);
+			gc = Mobile.isDoJa ? lcd.getDoJaGraphics() : lcd.getMIDPGraphics();
+			Mobile.log(Mobile.LOG_DEBUG, "MobilePlatform: LCD and GC reinitialized");
+		} catch (Exception e) {
+			Mobile.log(Mobile.LOG_ERROR, "MobilePlatform: Reset failed: " + e.getMessage());
+		}
 	}
 
 	public boolean isJarLoaded() {
-	return true; }
+	return loader != null; }
 
 }

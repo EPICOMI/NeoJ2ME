@@ -1,311 +1,204 @@
-/* package com.prakhar.j2mepcemu;
-
-import org.recompile.freej2me.FreeJ2ME;
-import org.recompile.mobile.Mobile;
-
-import javax.swing.JFileChooser;
-import java.awt.*;
-import java.io.File;
-
-import javax.swing.JFrame;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.dnd.*;
-
-import java.util.List;
-
-
-public class Main {
-    public static void main(String[] args) {
-        System.out.println("Core integrated!");
-
-        // Set working directory for config files
-        try {
-            File configDir = new File("config");
-            if (!configDir.exists()) {
-                configDir.mkdir();
-            }
-            System.setProperty("user.dir", configDir.getAbsolutePath());
-        } catch (Exception e) {
-            System.err.println("Failed to set working directory: " + e.getMessage());
-        }
-
-        // Create Swing JFrame
-        JFrame frame = new JFrame("My J2ME Emulator");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(240 * 2, 320 * 2); // Default size (240x320, scaled 2x)
-
-        // Initialize FreeJ2ME with default args (no JAR yet)
-        String[] emulatorArgs = {"", "240", "320", "2"};
-        FreeJ2ME emulator;
-        try {
-            emulator = new FreeJ2ME(emulatorArgs);
-        } catch (Exception e) {
-            System.err.println("Failed to initialize emulator: " + e.getMessage());
-            return;
-        }
-
-        // Customize the AWT Frame
-        Frame frame;
-        try {
-            frame = (Frame) FreeJ2ME.class.getDeclaredField("main").get(emulator);
-            frame.setTitle("My J2ME Emulator");
-            frame.setVisible(true); // Ensure frame is visible
-        } catch (Exception e) {
-            System.err.println("Failed to access emulator frame: " + e.getMessage());
-            return;
-        }
-
-        // Get LCD canvas for drag-and-drop
-        Canvas lcd;
-        try {
-            lcd = (Canvas) FreeJ2ME.class.getDeclaredField("lcd").get(emulator);
-        } catch (Exception e) {
-            System.err.println("Failed to access LCD canvas: " + e.getMessage());
-            return;
-        }
-
-        // Enable drag-and-drop on the LCD canvas
-        new DropTarget(lcd, new DropTargetListener() {
-            @Override
-            public void dragEnter(DropTargetDragEvent dtde) {
-                // Accept only JAR files
-                if (dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
-                    try {
-                        List<File> files = (List<File>) dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
-                        if (files.stream().anyMatch(file -> file.getName().toLowerCase().endsWith(".jar"))) {
-                            dtde.acceptDrag(DnDConstants.ACTION_COPY);
-                        } else {
-                            dtde.rejectDrag();
-                        }
-                    } catch (Exception e) {
-                        dtde.rejectDrag();
-                    }
-                } else {
-                    dtde.rejectDrag();
-                }
-            }
-
-            @Override
-            public void dragOver(DropTargetDragEvent dtde) {}
-
-            @Override
-            public void dropActionChanged(DropTargetDragEvent dtde) {}
-
-            @Override
-            public void dragExit(DropTargetEvent dte) {}
-
-            @Override
-            public void drop(DropTargetDropEvent dtde) {
-                try {
-                    dtde.acceptDrop(DnDConstants.ACTION_COPY);
-                    List<File> files = (List<File>) dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
-                    if (!files.isEmpty()) {
-                        File jarFile = files.get(0);
-                        if (jarFile.getName().toLowerCase().endsWith(".jar")) {
-                            // Convert to file:/// URI
-                            String jarPath = "file:///" + jarFile.getAbsolutePath().replace("\\", "/");
-                            System.out.println("Dropped JAR Path: " + jarPath);
-
-                            // Stop any running game
-                            org.recompile.mobile.Mobile.getPlatform().stopApp();
-
-                            // Load and run new JAR
-                            org.recompile.mobile.Mobile.getPlatform().load(jarPath);
-                            org.recompile.mobile.Mobile.getPlatform().runJar();
-
-                            // Load and run new JAR
-                            if (org.recompile.mobile.Mobile.getPlatform().load(jarPath)) {
-                                org.recompile.mobile.Mobile.getPlatform().runJar();
-                            } else {
-                                System.err.println("Failed to load JAR: " + jarPath);
-                            }
-                        }
-                    }
-                    dtde.dropComplete(true);
-                } catch (Exception e) {
-                    System.err.println("Drop failed: " + e.getMessage());
-                    dtde.dropComplete(false);
-                }
-            }
-        });
-    }
-} */
-
-/*        // Initialize the file chooser
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("J2ME JAR files", "jar"));
-        if (fileChooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
-            try {
-                File selectedFile = fileChooser.getSelectedFile();
-                // Verify file exists
-                if (!selectedFile.exists()) {
-                    System.err.println("Selected file does not exist: " + selectedFile.getAbsolutePath());
-                    return;
-                }
-
-                // Convert to file:/// URI and ensure correct slashes
-                String jarPath = "file:///" + selectedFile.getAbsolutePath().replace("\\", "/");
-                String[] emulatorArgs = {jarPath, "240", "320", "2"};
-                System.out.println("JAR Path: " + jarPath);
-                FreeJ2ME emulator = new FreeJ2ME(emulatorArgs);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        } else {
-            System.err.println("No file selected.");
-        }
-    }
-}
-
- */
-
 package com.prakhar.j2mepcemu;
-
-import org.recompile.freej2me.FreeJ2ME;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.datatransfer.DataFlavor;
 import java.awt.dnd.*;
+import java.awt.datatransfer.*;
+import java.awt.event.*;
 import java.io.File;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
+import org.recompile.freej2me.FreeJ2ME;
 
 public class Main {
+    private static JFrame frame;
+    private static JList<String> gameList;
+    private static DefaultListModel<String> listModel;
+    private static JLabel dragDropLabel;
+    private static ArrayList<File> gameFiles;
+    private static FreeJ2ME currentEmulator; // Track current instance
+
     public static void main(String[] args) {
-        System.out.println("Core integrated!");
+        SwingUtilities.invokeLater(() -> createAndShowGUI());
+    }
 
-        // Set working directory for config files
-        try {
-            File configDir = new File("config");
-            if (!configDir.exists()) {
-                configDir.mkdir();
-            }
-            System.setProperty("user.dir", configDir.getAbsolutePath());
-        } catch (Exception e) {
-            System.err.println("Failed to set working directory: " + e.getMessage());
-        }
-
-        // Create games directory
-        File gamesDir = new File("games");
-        if (!gamesDir.exists()) {
-            gamesDir.mkdir();
-        }
-
-        // Create Swing JFrame
-        JFrame frame = new JFrame("J2ME Emulator");
+    private static void createAndShowGUI() {
+        frame = new JFrame("FreeJ2ME Frontend");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(600, 400);
+        frame.setSize(400, 300);
         frame.setLayout(new BorderLayout());
 
-        // Create JList for game entries
-        DefaultListModel<String> gameListModel = new DefaultListModel<>();
-        JList<String> gameList = new JList<>(gameListModel);
+        listModel = new DefaultListModel<>();
+        gameList = new JList<>(listModel);
         gameList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        gameList.setFont(new Font("Arial", Font.PLAIN, 16));
-
-        // Populate JList with existing games
-        File[] gameFiles = gamesDir.listFiles((dir, name) -> name.toLowerCase().endsWith(".jar"));
-        if (gameFiles != null) {
-            Arrays.stream(gameFiles)
-                    .map(File::getName)
-                    .forEach(gameListModel::addElement);
-        }
-
-        // Add double-click listener to launch games
-        gameList.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override
-            public void mouseClicked(java.awt.event.MouseEvent evt) {
-                if (evt.getClickCount() == 2 && !gameList.isSelectionEmpty()) {
-                    String selectedGame = gameList.getSelectedValue();
-                    File jarFile = new File(gamesDir, selectedGame);
-                    if (jarFile.exists()) {
-                        String jarPath = "file:///" + jarFile.getAbsolutePath().replace("\\", "/");
-                        String[] emulatorArgs = {jarPath, "240", "320", "2"};
-                        try {
-                            new FreeJ2ME(emulatorArgs);
-                        } catch (Exception e) {
-                            System.err.println("Failed to launch game: " + e.getMessage());
-                            JOptionPane.showMessageDialog(frame, "Failed to launch " + selectedGame, "Error", JOptionPane.ERROR_MESSAGE);
-                        }
-                    }
-                }
-            }
-        });
-
-        // Wrap JList in JScrollPane
         JScrollPane scrollPane = new JScrollPane(gameList);
         frame.add(scrollPane, BorderLayout.CENTER);
 
-        // Create drop target panel
-        JPanel dropPanel = new JPanel();
-        dropPanel.setBackground(Color.LIGHT_GRAY);
-        dropPanel.setLayout(new BorderLayout());
-        JLabel dropLabel = new JLabel("Drag and Drop J2ME JAR Files Here", SwingConstants.CENTER);
-        dropLabel.setFont(new Font("Arial", Font.BOLD, 20));
-        dropPanel.add(dropLabel, BorderLayout.CENTER);
-        frame.add(dropPanel, BorderLayout.NORTH);
+        dragDropLabel = new JLabel("Drag and drop JAR files here", SwingConstants.CENTER);
+        dragDropLabel.setOpaque(true);
+        dragDropLabel.setBackground(Color.LIGHT_GRAY);
+        frame.add(dragDropLabel, BorderLayout.SOUTH);
 
-        // Enable drag-and-drop on dropPanel
-        new DropTarget(dropPanel, new DropTargetListener() {
+        gameFiles = new ArrayList<>();
+        setupDragAndDrop();
+        setupGameListListener();
+
+        loadGamesFromDirectory("games");
+
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
+    }
+
+
+    private static void setupDragAndDrop() {
+        // The DropTarget is correctly set on 'frame' for "drop anywhere"
+        new DropTarget(frame, new DropTargetAdapter() {
             @Override
             public void dragEnter(DropTargetDragEvent dtde) {
                 if (dtde.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
+                    Transferable transferable = dtde.getTransferable();
                     try {
-                        List<File> files = (List<File>) dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+                        @SuppressWarnings("unchecked")
+                        List<File> files = (List<File>) transferable.getTransferData(DataFlavor.javaFileListFlavor);
+                        // Check if at least one file is a JAR file for early feedback
                         if (files.stream().anyMatch(file -> file.getName().toLowerCase().endsWith(".jar"))) {
                             dtde.acceptDrag(DnDConstants.ACTION_COPY);
                         } else {
-                            dtde.rejectDrag();
+                            dtde.rejectDrag(); // Reject if no JAR files are in the drag operation
                         }
-                    } catch (Exception e) {
+                    } catch (UnsupportedFlavorException | IOException e) {
+                        // Problem getting data, usually means we can't handle it or it's not a file list
                         dtde.rejectDrag();
                     }
                 } else {
-                    dtde.rejectDrag();
+                    dtde.rejectDrag(); // Data flavor not supported
                 }
             }
-
-            @Override
-            public void dragOver(DropTargetDragEvent dtde) {}
-
-            @Override
-            public void dropActionChanged(DropTargetDragEvent dtde) {}
-
-            @Override
-            public void dragExit(DropTargetEvent dte) {}
 
             @Override
             public void drop(DropTargetDropEvent dtde) {
                 try {
                     dtde.acceptDrop(DnDConstants.ACTION_COPY);
-                    List<File> files = (List<File>) dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
-                    for (File file : files) {
-                        if (file.getName().toLowerCase().endsWith(".jar")) {
-                            // Copy file to games directory
+                    @SuppressWarnings("unchecked") // Standard practice for this cast
+                    List<File> droppedFiles = (List<File>) dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+
+                    File gamesDir = new File("games");
+                    // Ensure "games" directory exists (loadGamesFromDirectory also does this, added for robustness here)
+                    if (!gamesDir.exists()) {
+                        if (!gamesDir.mkdirs()) {
+                            dragDropLabel.setText("Error: Cannot create 'games' directory.");
+                            System.err.println("Error: Cannot create 'games' directory.");
+                            dtde.dropComplete(false);
+                            return;
+                        }
+                    }
+
+                    int filesAddedCount = 0;
+                    List<String> addedFileNamesThisDrop = new ArrayList<>();
+
+                    for (File file : droppedFiles) {
+                        if (file.isFile() && file.getName().toLowerCase().endsWith(".jar")) {
                             File destFile = new File(gamesDir, file.getName());
-                            Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                            // Add to JList if not already present
-                            if (!gameListModel.contains(file.getName())) {
-                                gameListModel.addElement(file.getName());
+                            try {
+                                // Copy the file to the "games" directory, replacing if it exists
+                                Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+
+                                // Add the *copied file's* name to listModel and the File object to gameFiles
+                                // Only add if it's not already in the list model from this current drop session or from load.
+                                if (!listModel.contains(destFile.getName())) {
+                                    listModel.addElement(destFile.getName());
+                                    gameFiles.add(destFile); // Add the File object pointing to the copy in "games"
+                                    addedFileNamesThisDrop.add(destFile.getName());
+                                    filesAddedCount++;
+                                } else {
+                                    // File already existed in list, its content in "games" dir is now updated.
+                                    // We might need to update the File object in gameFiles if the instance matters,
+                                    // but since launchGame uses getAbsolutePath(), and loadGamesFromDirectory also
+                                    // loads based on path, this should be fine.
+                                    // We count it as processed if it's a JAR.
+                                    if (!addedFileNamesThisDrop.contains(destFile.getName())) { // Ensure it was a JAR we processed
+                                        filesAddedCount++; // Count as processed (updated)
+                                    }
+                                }
+                            } catch (IOException ex) {
+                                System.err.println("Failed to copy file: " + file.getName() + " - " + ex.getMessage());
+                                // Optionally, inform the user via dragDropLabel or a dialog for this specific file
                             }
                         }
                     }
+
+                    if (filesAddedCount > 0) {
+                        dragDropLabel.setText("Processed " + filesAddedCount + " JAR file(s) into 'games' directory.");
+                    } else {
+                        dragDropLabel.setText("No new JAR files were added. Drag JAR files here.");
+                    }
                     dtde.dropComplete(true);
-                } catch (IOException e) {
-                    System.err.println("Failed to copy file: " + e.getMessage());
+
+                } catch (UnsupportedFlavorException | IOException e) {
+                    dragDropLabel.setText("Error processing drop: " + e.getMessage());
+                    System.err.println("Drop failed (flavor/IO): " + e.getMessage());
                     dtde.dropComplete(false);
-                } catch (Exception e) {
-                    System.err.println("Drop failed: " + e.getMessage());
+                } catch (Exception e) { // Catch any other unexpected errors
+                    dragDropLabel.setText("Unexpected error during drop: " + e.getMessage());
+                    System.err.println("Unexpected drop error: " + e.getMessage());
+                    e.printStackTrace();
                     dtde.dropComplete(false);
                 }
             }
         });
+    }
 
-        // Display the frame
-        frame.setVisible(true);
+    private static void setupGameListListener() {
+        gameList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int index = gameList.getSelectedIndex();
+                    if (index != -1) {
+                        File gameFile = gameFiles.get(index);
+                        launchGame(gameFile);
+                    }
+                }
+            }
+        });
+    }
+
+    private static void launchGame(File gameFile) {
+        try {
+            // Shut down previous emulator if active
+            if (currentEmulator != null) {
+                currentEmulator.shutdown();
+                currentEmulator = null;
+            }
+            String encodedPath = URLEncoder.encode(gameFile.getAbsolutePath().replace("\\", "/"), StandardCharsets.UTF_8.toString())
+                    .replace("+", "%20");
+            String[] args = {"file:///" + encodedPath};
+            currentEmulator = new FreeJ2ME(args);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(frame, "Failed to launch game: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            if (currentEmulator != null) {
+                currentEmulator.shutdown();
+                currentEmulator = null;
+            }
+        }
+    }
+
+    private static void loadGamesFromDirectory(String dirPath) {
+        File dir = new File(dirPath);
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+        File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".jar"));
+        if (files != null) {
+            for (File file : files) {
+                listModel.addElement(file.getName());
+                gameFiles.add(file);
+            }
+        }
     }
 }
