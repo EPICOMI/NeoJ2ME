@@ -12,7 +12,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import javax.swing.JFileChooser;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import org.recompile.freej2me.FreeJ2ME;
 
 public class Main {
@@ -42,7 +45,30 @@ public class Main {
         dragDropLabel = new JLabel("Drag and drop JAR files here", SwingConstants.CENTER);
         dragDropLabel.setOpaque(true);
         dragDropLabel.setBackground(Color.LIGHT_GRAY);
-        frame.add(dragDropLabel, BorderLayout.SOUTH);
+
+        JButton importButton = new JButton("Import Game(s)");
+        importButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                JFileChooser fileChooser = new JFileChooser();
+                fileChooser.setMultiSelectionEnabled(true);
+                fileChooser.setFileFilter(new FileNameExtensionFilter("Java Archives (*.jar)", "jar"));
+                fileChooser.setDialogTitle("Select Game JARs to Import");
+                int returnValue = fileChooser.showOpenDialog(frame);
+                if (returnValue == JFileChooser.APPROVE_OPTION) {
+                    File[] selectedFiles = fileChooser.getSelectedFiles();
+                    if (selectedFiles != null && selectedFiles.length > 0) {
+                        processAndAddGameFiles(Arrays.asList(selectedFiles), dragDropLabel);
+                    }
+                }
+            }
+        });
+
+        JPanel southPanel = new JPanel(new BorderLayout());
+        southPanel.add(importButton, BorderLayout.WEST);
+        southPanel.add(dragDropLabel, BorderLayout.CENTER);
+
+        frame.add(southPanel, BorderLayout.SOUTH);
 
         gameFiles = new ArrayList<>();
         setupDragAndDrop();
@@ -86,59 +112,8 @@ public class Main {
                     dtde.acceptDrop(DnDConstants.ACTION_COPY);
                     @SuppressWarnings("unchecked") // Standard practice for this cast
                     List<File> droppedFiles = (List<File>) dtde.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
-
-                    File gamesDir = new File("games");
-                    // Ensure "games" directory exists (loadGamesFromDirectory also does this, added for robustness here)
-                    if (!gamesDir.exists()) {
-                        if (!gamesDir.mkdirs()) {
-                            dragDropLabel.setText("Error: Cannot create 'games' directory.");
-                            System.err.println("Error: Cannot create 'games' directory.");
-                            dtde.dropComplete(false);
-                            return;
-                        }
-                    }
-
-                    int filesAddedCount = 0;
-                    List<String> addedFileNamesThisDrop = new ArrayList<>();
-
-                    for (File file : droppedFiles) {
-                        if (file.isFile() && file.getName().toLowerCase().endsWith(".jar")) {
-                            File destFile = new File(gamesDir, file.getName());
-                            try {
-                                // Copy the file to the "games" directory, replacing if it exists
-                                Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-
-                                // Add the *copied file's* name to listModel and the File object to gameFiles
-                                // Only add if it's not already in the list model from this current drop session or from load.
-                                if (!listModel.contains(destFile.getName())) {
-                                    listModel.addElement(destFile.getName());
-                                    gameFiles.add(destFile); // Add the File object pointing to the copy in "games"
-                                    addedFileNamesThisDrop.add(destFile.getName());
-                                    filesAddedCount++;
-                                } else {
-                                    // File already existed in list, its content in "games" dir is now updated.
-                                    // We might need to update the File object in gameFiles if the instance matters,
-                                    // but since launchGame uses getAbsolutePath(), and loadGamesFromDirectory also
-                                    // loads based on path, this should be fine.
-                                    // We count it as processed if it's a JAR.
-                                    if (!addedFileNamesThisDrop.contains(destFile.getName())) { // Ensure it was a JAR we processed
-                                        filesAddedCount++; // Count as processed (updated)
-                                    }
-                                }
-                            } catch (IOException ex) {
-                                System.err.println("Failed to copy file: " + file.getName() + " - " + ex.getMessage());
-                                // Optionally, inform the user via dragDropLabel or a dialog for this specific file
-                            }
-                        }
-                    }
-
-                    if (filesAddedCount > 0) {
-                        dragDropLabel.setText("Processed " + filesAddedCount + " JAR file(s) into 'games' directory.");
-                    } else {
-                        dragDropLabel.setText("No new JAR files were added. Drag JAR files here.");
-                    }
+                    processAndAddGameFiles(droppedFiles, dragDropLabel);
                     dtde.dropComplete(true);
-
                 } catch (UnsupportedFlavorException | IOException e) {
                     dragDropLabel.setText("Error processing drop: " + e.getMessage());
                     System.err.println("Drop failed (flavor/IO): " + e.getMessage());
@@ -151,6 +126,57 @@ public class Main {
                 }
             }
         });
+    }
+
+    private static void processAndAddGameFiles(List<File> files, JLabel feedbackLabel) {
+        File gamesDir = new File("games");
+        if (!gamesDir.exists()) {
+            if (!gamesDir.mkdirs()) {
+                feedbackLabel.setText("Error: Cannot create 'games' directory.");
+                System.err.println("Error: Cannot create 'games' directory.");
+                return;
+            }
+        }
+
+        int filesProcessedCount = 0; // Renamed for clarity, as it counts both new and updated files
+        List<String> processedFileNamesThisOperation = new ArrayList<>(); // Tracks files processed in this call
+
+        for (File file : files) {
+            if (file.isFile() && file.getName().toLowerCase().endsWith(".jar")) {
+                File destFile = new File(gamesDir, file.getName());
+                try {
+                    Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    // Check if the file (by name) is already in the list model
+                    if (!listModel.contains(destFile.getName())) {
+                        listModel.addElement(destFile.getName());
+                        gameFiles.add(destFile); // Add the File object pointing to the copy in "games"
+                        processedFileNamesThisOperation.add(destFile.getName());
+                        filesProcessedCount++;
+                    } else {
+                        // File already existed in listModel, its content in "games" dir is now updated.
+                        // We count it as processed (updated) if it hasn't been counted in this operation yet.
+                        if (!processedFileNamesThisOperation.contains(destFile.getName())) {
+                            // We need to ensure we update the File object in gameFiles if it changed,
+                            // however, since listModel stores names and gameFiles stores File objects,
+                            // and we retrieve by index, if a file is REPLACED, the existing File object
+                            // in gameFiles still points to the correct path. So, no specific update needed here for gameFiles.
+                            processedFileNamesThisOperation.add(destFile.getName());
+                            filesProcessedCount++;
+                        }
+                    }
+                } catch (IOException ex) {
+                    System.err.println("Failed to copy file: " + file.getName() + " - " + ex.getMessage());
+                    feedbackLabel.setText("Error copying " + file.getName());
+                    // Potentially return or decide if one error stops all, for now, it continues
+                }
+            }
+        }
+
+        if (filesProcessedCount > 0) {
+            feedbackLabel.setText("Processed " + filesProcessedCount + " JAR file(s) into 'games' directory.");
+        } else {
+            feedbackLabel.setText("No new or updated JAR files were processed. Drag JAR files here.");
+        }
     }
 
     private static void setupGameListListener() {
