@@ -1,5 +1,6 @@
 package com.prakhar.j2mepcemu;
 
+import com.prakhar.j2mepcemu.MenuBar;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.dnd.*;
@@ -14,6 +15,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.HashSet; // For efficient lookup of existing game file paths
+import java.util.Set; // For the HashSet
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import org.recompile.freej2me.FreeJ2ME;
@@ -74,7 +77,12 @@ public class Main {
         setupDragAndDrop();
         setupGameListListener();
 
-        loadGamesFromDirectory("games");
+        // loadGamesFromDirectory("games"); // Remove this line
+        loadGamesFromConfiguredDirectories(); // Add this line
+
+        // Create and set the menu bar
+        MenuBar menuBarComponent = new MenuBar(frame); // Pass the frame instance
+        frame.setJMenuBar(menuBarComponent.createMenuBar());
 
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
@@ -138,44 +146,31 @@ public class Main {
             }
         }
 
-        int filesProcessedCount = 0; // Renamed for clarity, as it counts both new and updated files
-        List<String> processedFileNamesThisOperation = new ArrayList<>(); // Tracks files processed in this call
+        int filesCopiedCount = 0;
 
         for (File file : files) {
             if (file.isFile() && file.getName().toLowerCase().endsWith(".jar")) {
                 File destFile = new File(gamesDir, file.getName());
                 try {
                     Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    // Check if the file (by name) is already in the list model
-                    if (!listModel.contains(destFile.getName())) {
-                        listModel.addElement(destFile.getName());
-                        gameFiles.add(destFile); // Add the File object pointing to the copy in "games"
-                        processedFileNamesThisOperation.add(destFile.getName());
-                        filesProcessedCount++;
-                    } else {
-                        // File already existed in listModel, its content in "games" dir is now updated.
-                        // We count it as processed (updated) if it hasn't been counted in this operation yet.
-                        if (!processedFileNamesThisOperation.contains(destFile.getName())) {
-                            // We need to ensure we update the File object in gameFiles if it changed,
-                            // however, since listModel stores names and gameFiles stores File objects,
-                            // and we retrieve by index, if a file is REPLACED, the existing File object
-                            // in gameFiles still points to the correct path. So, no specific update needed here for gameFiles.
-                            processedFileNamesThisOperation.add(destFile.getName());
-                            filesProcessedCount++;
-                        }
-                    }
+                    filesCopiedCount++;
+                    // The direct adding to listModel and gameFiles here is now redundant
+                    // as refreshGameList() will rescan everything.
+                    // We just need to make sure the file is copied.
                 } catch (IOException ex) {
                     System.err.println("Failed to copy file: " + file.getName() + " - " + ex.getMessage());
                     feedbackLabel.setText("Error copying " + file.getName());
-                    // Potentially return or decide if one error stops all, for now, it continues
                 }
             }
         }
 
-        if (filesProcessedCount > 0) {
-            feedbackLabel.setText("Processed " + filesProcessedCount + " JAR file(s) into 'games' directory.");
+        if (filesCopiedCount > 0) {
+            feedbackLabel.setText("Copied " + filesCopiedCount + " JAR file(s) to 'games' directory.");
+            refreshGameList(); // Refresh the list to show newly dropped games
         } else {
-            feedbackLabel.setText("No new or updated JAR files were processed. Drag JAR files here.");
+            feedbackLabel.setText("No new JAR files were processed. Drag JAR files here.");
+            // Optionally call refreshGameList() even if no files copied, if other state might need update
+            // but typically only needed if changes occurred.
         }
     }
 
@@ -214,17 +209,85 @@ public class Main {
         }
     }
 
-    private static void loadGamesFromDirectory(String dirPath) {
-        File dir = new File(dirPath);
-        if (!dir.exists()) {
-            dir.mkdirs();
+    // private static void loadGamesFromDirectory(String dirPath) { ... } // REMOVE or COMMENT OUT OLD METHOD
+
+    private static void scanDirectoryForGamesInternal(File directory, Set<String> scannedGamePaths) {
+        if (!directory.exists() || !directory.isDirectory()) {
+            // System.err.println("Cannot scan directory: " + directory.getAbsolutePath() + " - does not exist or not a directory.");
+            return;
         }
-        File[] files = dir.listFiles((d, name) -> name.toLowerCase().endsWith(".jar"));
+
+        File[] files = directory.listFiles((d, name) -> name.toLowerCase().endsWith(".jar"));
         if (files != null) {
             for (File file : files) {
-                listModel.addElement(file.getName());
+                if (scannedGamePaths.contains(file.getAbsolutePath())) {
+                    continue; // Already processed this file, skip
+                }
+
+                // Add to listModel and gameFiles
+                // Suffixing with parent directory name helps distinguish if same JAR name exists in multiple places
+                String gameDisplayName = file.getName();
+                if (directory.getName().equals("games") && file.getParentFile().equals(new File("games").getAbsoluteFile())) {
+                     // For files directly in our 'games' root, don't add "(games)" suffix
+                } else {
+                     gameDisplayName += " (" + directory.getName() + ")";
+                }
+
+                listModel.addElement(gameDisplayName);
                 gameFiles.add(file);
+                scannedGamePaths.add(file.getAbsolutePath()); // Mark as processed
             }
         }
+
+        File[] subDirs = directory.listFiles(File::isDirectory);
+        if (subDirs != null) {
+            for (File subDir : subDirs) {
+                scanDirectoryForGamesInternal(subDir, scannedGamePaths); // Recursive call
+            }
+        }
+    }
+
+    private static void loadGamesFromConfiguredDirectories() {
+        listModel.clear();
+        gameFiles.clear();
+        Set<String> scannedGamePaths = new HashSet<>(); // To prevent duplicates if "games" is also a configured path
+
+        // 1. Always scan the local "games" directory
+        File localGamesDir = new File("games");
+        if (!localGamesDir.exists()) {
+            localGamesDir.mkdirs(); // Ensure it exists for drag & drop consistency
+        }
+        // System.out.println("Scanning default 'games' directory: " + localGamesDir.getAbsolutePath());
+        scanDirectoryForGamesInternal(localGamesDir, scannedGamePaths);
+
+        // 2. Scan all user-configured directories
+        List<String> configuredPaths = new ArrayList<>(); // Initialize to empty list
+        try {
+            configuredPaths = GameDirectoryConfig.loadDirectories();
+        } catch (java.io.IOException e) {
+            System.err.println("Error loading game directory configurations: " + e.getMessage());
+            // Optionally, provide feedback to the user via the UI, though dragDropLabel is mostly for game status
+            // dragDropLabel.setText("Error loading directory config: " + e.getMessage());
+            // For now, logging to System.err is consistent with other parts of the initial load sequence.
+        }
+
+        // System.out.println("Scanning " + configuredPaths.size() + " configured directories.");
+        for (String path : configuredPaths) {
+            File dir = new File(path);
+            // System.out.println("Scanning configured directory: " + dir.getAbsolutePath());
+            scanDirectoryForGamesInternal(dir, scannedGamePaths);
+        }
+
+        if (listModel.isEmpty()) {
+            dragDropLabel.setText("No games found. Drag & drop JARs or add directories in Options > Settings.");
+        } else {
+            dragDropLabel.setText("Drag & drop JARs or configure game directories in Settings.");
+        }
+    }
+
+    public static void refreshGameList() {
+        System.out.println("Main.refreshGameList() called."); // For logging
+        loadGamesFromConfiguredDirectories();
+        // Potentially update other UI elements if necessary
     }
 }
