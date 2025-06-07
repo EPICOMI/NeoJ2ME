@@ -261,7 +261,16 @@ public class Main {
         scanDirectoryForGamesInternal(localGamesDir, scannedGamePaths);
 
         // 2. Scan all user-configured directories
-        List<String> configuredPaths = GameDirectoryConfig.loadDirectories();
+        List<String> configuredPaths = new ArrayList<>(); // Initialize to empty list
+        try {
+            configuredPaths = GameDirectoryConfig.loadDirectories();
+        } catch (java.io.IOException e) {
+            System.err.println("Error loading game directory configurations: " + e.getMessage());
+            // Optionally, provide feedback to the user via the UI, though dragDropLabel is mostly for game status
+            // dragDropLabel.setText("Error loading directory config: " + e.getMessage());
+            // For now, logging to System.err is consistent with other parts of the initial load sequence.
+        }
+
         // System.out.println("Scanning " + configuredPaths.size() + " configured directories.");
         for (String path : configuredPaths) {
             File dir = new File(path);
