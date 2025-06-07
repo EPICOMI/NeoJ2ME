@@ -19,6 +19,8 @@ import java.util.HashSet; // For efficient lookup of existing game file paths
 import java.util.Set; // For the HashSet
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.JPopupMenu;
+import javax.swing.JMenuItem;
 import org.recompile.freej2me.FreeJ2ME;
 
 public class Main {
@@ -28,6 +30,7 @@ public class Main {
     private static JLabel dragDropLabel;
     private static ArrayList<File> gameFiles;
     private static FreeJ2ME currentEmulator; // Track current instance
+    private static JPopupMenu gameListContextMenu; // New
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> createAndShowGUI());
@@ -74,8 +77,68 @@ public class Main {
         frame.add(southPanel, BorderLayout.SOUTH);
 
         gameFiles = new ArrayList<>();
+
+        // Setup Context Menu for gameList
+        gameListContextMenu = new JPopupMenu();
+        JMenuItem playItem = new JMenuItem("Play");
+        playItem.addActionListener(e -> {
+            int selectedIndex = gameList.getSelectedIndex();
+            if (selectedIndex != -1) {
+                File gameFile = gameFiles.get(selectedIndex);
+                launchGame(gameFile);
+            }
+        });
+        gameListContextMenu.add(playItem);
+
+        JMenuItem removeItem = new JMenuItem("Remove");
+        removeItem.addActionListener(e -> {
+            int selectedIndex = gameList.getSelectedIndex();
+            if (selectedIndex != -1) {
+                // Ensure indices are valid before removing
+                if (selectedIndex < gameFiles.size() && selectedIndex < listModel.getSize()) {
+                    String removedGameName = listModel.getElementAt(selectedIndex); // Get name for feedback
+                    gameFiles.remove(selectedIndex);
+                    listModel.remove(selectedIndex);
+                    // Update dragDropLabel with feedback
+                    dragDropLabel.setText("'" + removedGameName + "' removed from list. May reappear on refresh.");
+                } else {
+                    System.err.println("Error: Index mismatch when trying to remove game from list.");
+                    dragDropLabel.setText("Error removing game. Index mismatch."); // Optional: feedback for error
+                }
+            }
+        });
+        gameListContextMenu.add(removeItem);
+
+        // Listener for showing the context menu
+        gameList.addMouseListener(new MouseAdapter() {
+            public void mousePressed(MouseEvent e) {
+                showPopup(e);
+            }
+
+            public void mouseReleased(MouseEvent e) {
+                showPopup(e);
+            }
+
+            private void showPopup(MouseEvent e) {
+                if (e.isPopupTrigger()) { // For cross-platform popup trigger
+                    int row = gameList.locationToIndex(e.getPoint());
+                    if (row != -1) { // If click is on an item
+                        // Select the item under the mouse cursor before showing the context menu
+                        // This ensures the context menu actions apply to the right-clicked item
+                        if (gameList.getSelectedIndex() != row) {
+                             gameList.setSelectedIndex(row);
+                        }
+                        gameListContextMenu.show(e.getComponent(), e.getX(), e.getY());
+                    } else {
+                        // Optional: If right-click is not on an item, clear selection or do nothing
+                        // gameList.clearSelection();
+                    }
+                }
+            }
+        });
+
         setupDragAndDrop();
-        setupGameListListener();
+        setupGameListListener(); // This is the double-click listener
 
         // loadGamesFromDirectory("games"); // Remove this line
         loadGamesFromConfiguredDirectories(); // Add this line
