@@ -3,9 +3,11 @@ package com.prakhar.j2mepcemu;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-// import com.prakhar.j2mepcemu.HiddenGamesDialog; // Might be needed
 
-    private JFrame parentFrame; // To link actions to the main frame if needed
+// Ensure this class declaration was not accidentally removed or malformed
+public class MenuBar {
+
+    private JFrame parentFrame; // To link actions to the main frame
 
     public MenuBar(JFrame parentFrame) {
         this.parentFrame = parentFrame;
@@ -28,7 +30,7 @@ import java.awt.event.ActionListener;
     private JMenu createFileMenu() {
         JMenu fileMenu = new JMenu("File");
 
-        // New "Hidden Games" menu item
+        // "Hidden Games" menu item
         JMenuItem hiddenGamesItem = new JMenuItem("Hidden Games..."); // Ellipsis indicates it opens a dialog
         hiddenGamesItem.addActionListener(new ActionListener() {
             @Override
@@ -38,7 +40,6 @@ import java.awt.event.ActionListener;
         });
         fileMenu.add(hiddenGamesItem);
 
-        // Add a separator for visual distinction before Exit, if desired
         fileMenu.addSeparator();
 
         JMenuItem exitItem = new JMenuItem("Exit");
@@ -51,7 +52,7 @@ import java.awt.event.ActionListener;
     private JMenu createOptionsMenu() {
         JMenu optionsMenu = new JMenu("Options");
 
-        JMenuItem settingsItem = new JMenuItem("Settings");
+        JMenuItem settingsItem = new JMenuItem("Settings..."); // Added ellipsis
         settingsItem.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -63,18 +64,23 @@ import java.awt.event.ActionListener;
         return optionsMenu;
     }
 
-    public void showSettingsDialog() {
+    // Method to show the SettingsDialog
+    private void showSettingsDialog() {
+        if (parentFrame == null) {
+            System.err.println("Cannot show SettingsDialog: parentFrame is null.");
+            return;
+        }
         SettingsDialog settingsDialog = new SettingsDialog(parentFrame);
         settingsDialog.setVisible(true);
     }
 
+    // Method to show the HiddenGamesDialog
     private void showHiddenGamesDialog() {
         if (parentFrame == null) {
-            // This should ideally not happen if MenuBar is constructed properly
             System.err.println("Cannot show HiddenGamesDialog: parentFrame is null.");
             return;
         }
         HiddenGamesDialog dialog = new HiddenGamesDialog(parentFrame);
-        dialog.setVisible(true); // Show the dialog
+        dialog.setVisible(true);
     }
 }
