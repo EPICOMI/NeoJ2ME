@@ -129,18 +129,11 @@ public class HiddenGamesDialog extends JDialog {
         if (unhiddenCount > 0) {
             // Refresh the list in this dialog
             loadHiddenGames();
-            // Crucially, refresh the main game list in the Main window
-            if (parentFrame instanceof Main) { // Basic check, not ideal but works for now
-                 Main.refreshGameList();
-            } else {
-                // If parentFrame is not Main, or a more robust callback is needed:
-                System.out.println("HiddenGamesDialog: Main game list refresh needed but parent not Main or no callback.");
-                JOptionPane.showMessageDialog(this,
-                    unhiddenCount + " game(s) unhidden. Please restart or refresh main list manually if it doesn't update.",
-                    "Games Unhidden",
-                    JOptionPane.INFORMATION_MESSAGE);
 
-            }
+            // Crucially, refresh the main game list in the Main window
+            Main.refreshGameList();
+            // System.out.println("HiddenGamesDialog: Main.refreshGameList() called.");
+
              if (!errorOccurred) { // Only show success if no errors at all
                 // This specific dialog might be too much if the list auto-refreshes successfully.
                 // JOptionPane.showMessageDialog(this, unhiddenCount + " game(s) unhidden successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
