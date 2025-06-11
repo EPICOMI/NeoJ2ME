@@ -21,7 +21,8 @@ import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
-import com.prakhar.j2mepcemu.IgnoredGamesConfig; // New
+import com.prakhar.j2mepcemu.IgnoredGamesConfig;
+import com.prakhar.j2mepcemu.PermanentlyRemovedGamesConfig; // New
 import java.io.IOException; // For handling exceptions from IgnoredGamesConfig
 import org.recompile.freej2me.FreeJ2ME;
 
@@ -107,8 +108,13 @@ public class Main {
                     String gameDisplayName = listModel.getElementAt(selectedIndex);
 
                     try {
-                        IgnoredGamesConfig.addIgnoredGame(gamePath); // Add to ignored list
+                        // First, remove from permanently removed list, if it was there
+                        PermanentlyRemovedGamesConfig.removePermanentlyRemovedGame(gamePath);
 
+                        // Then, add to ignored (hidden) list
+                        IgnoredGamesConfig.addIgnoredGame(gamePath);
+
+                        // Remove from current view
                         gameFiles.remove(selectedIndex);
                         listModel.remove(selectedIndex);
 
@@ -137,17 +143,33 @@ public class Main {
             int selectedIndex = gameList.getSelectedIndex();
             if (selectedIndex != -1) {
                 if (selectedIndex < gameFiles.size() && selectedIndex < listModel.getSize()) {
-                    String removedGameName = listModel.getElementAt(selectedIndex); // Get name for feedback
+                    File gameFileToRemove = gameFiles.get(selectedIndex); // Get the File object
+                    String gamePath = gameFileToRemove.getAbsolutePath();
+                    String gameDisplayName = listModel.getElementAt(selectedIndex);
 
-                    // Simply remove from the current view's models
-                    gameFiles.remove(selectedIndex);
-                    listModel.remove(selectedIndex);
+                    try {
+                        // First, remove from ignored (hidden) list, if it was there
+                        IgnoredGamesConfig.removeIgnoredGame(gamePath);
 
-                    // Update dragDropLabel with feedback for temporary removal
-                    dragDropLabel.setText("'" + removedGameName + "' removed from list for this session.");
-                    // System.out.println("Game temporarily removed: " + removedGameName);
+                        // Then, add to permanently removed list
+                        PermanentlyRemovedGamesConfig.addPermanentlyRemovedGame(gamePath);
+
+                        // Remove from current view
+                        gameFiles.remove(selectedIndex);
+                        listModel.remove(selectedIndex);
+
+                        // Update dragDropLabel feedback
+                        dragDropLabel.setText("'" + gameDisplayName + "' removed. Re-import directory or drag & drop to see it again.");
+
+                    } catch (IOException ex) {
+                        System.err.println("Error trying to permanently remove game '" + gamePath + "': " + ex.getMessage());
+                        JOptionPane.showMessageDialog(frame,
+                                "Error removing game: " + ex.getMessage(),
+                                "Error",
+                                JOptionPane.ERROR_MESSAGE);
+                    }
                 } else {
-                    System.err.println("Error: Index mismatch when trying to temporarily remove game.");
+                    System.err.println("Error: Index mismatch when trying to permanently remove game.");
                     dragDropLabel.setText("Error removing game. Index mismatch.");
                 }
             }
@@ -245,7 +267,7 @@ public class Main {
     }
 
     private static void processAndAddGameFiles(List<File> files, JLabel feedbackLabel) {
-        File gamesDir = new File("games"); // Target directory for dropped games
+        File gamesDir = new File("games");
         if (!gamesDir.exists()) {
             if (!gamesDir.mkdirs()) {
                 feedbackLabel.setText("Error: Cannot create 'games' directory.");
@@ -255,66 +277,69 @@ public class Main {
         }
 
         int filesCopiedCount = 0;
-        int filesUnhiddenCount = 0; // New: Track unhidden files
-        Set<String> currentIgnoredGames = null; // Load once
+        int filesRestoredCount = 0; // Changed from unhiddenCount for more general term
 
-        try {
-            currentIgnoredGames = IgnoredGamesConfig.loadIgnoredGames();
-        } catch (IOException e) {
-            System.err.println("Error loading ignored games list: " + e.getMessage());
-            feedbackLabel.setText("Error loading ignored games list. Proceeding without unhide.");
-            // Initialize to empty set to avoid NullPointerExceptions later if loading fails
-            currentIgnoredGames = new HashSet<>();
-        }
+        // No need to load ignored/permanently_removed sets here anymore,
+        // as the remove methods in config classes handle non-existence gracefully.
 
-        for (File file : files) { // Iterate through files dropped by the user
+        for (File file : files) {
             if (file.isFile() && file.getName().toLowerCase().endsWith(".jar")) {
-                File destFile = new File(gamesDir, file.getName()); // Potential destination in "games" dir
+                File destFile = new File(gamesDir, file.getName());
                 String destPath = destFile.getAbsolutePath();
 
+                boolean wasIgnored = false; // To track if it was in any list
+                boolean wasPermanentlyRemoved = false;
+
                 try {
-                    // Check if this destination path is in the loaded ignored list
-                    if (IgnoredGamesConfig.isGameIgnored(destPath, currentIgnoredGames)) {
-                        IgnoredGamesConfig.removeIgnoredGame(destPath); // Unhide it (this will re-save the config)
-                        currentIgnoredGames.remove(destPath); // Update our current set to reflect the change
-                        filesUnhiddenCount++;
-                        // System.out.println("Game unhidden by drag & drop: " + destPath);
+                    // Attempt to remove from both lists.
+                    // These methods load the respective lists, modify, and save if changed.
+                    // They don't throw error if item not found.
+
+                    // Check if it was ignored (for feedback purposes)
+                    // We need to load the sets to check *before* removing.
+                    Set<String> initialIgnored = IgnoredGamesConfig.loadIgnoredGames();
+                    if (initialIgnored.contains(destPath)) {
+                        wasIgnored = true;
+                    }
+                    IgnoredGamesConfig.removeIgnoredGame(destPath); // Remove from hidden list
+
+                    Set<String> initialPermRemoved = PermanentlyRemovedGamesConfig.loadPermanentlyRemovedGames();
+                    if (initialPermRemoved.contains(destPath)) {
+                        wasPermanentlyRemoved = true;
+                    }
+                    PermanentlyRemovedGamesConfig.removePermanentlyRemovedGame(destPath); // Remove from permanently removed list
+
+                    if (wasIgnored || wasPermanentlyRemoved) {
+                        filesRestoredCount++;
                     }
 
-                    // Copy the file
                     Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
                     filesCopiedCount++;
 
                 } catch (IOException ex) {
                     System.err.println("Error processing dropped file '" + file.getName() + "': " + ex.getMessage());
-                    // Show specific error related to this file to the user
                     JOptionPane.showMessageDialog(frame,
                             "Error processing dropped file '" + file.getName() + "':\n" + ex.getMessage(),
                             "File Drop Error",
                             JOptionPane.ERROR_MESSAGE);
-                    // Continue to next file if one fails
                 }
             }
         }
 
-        if (filesCopiedCount > 0 || filesUnhiddenCount > 0) {
+        if (filesCopiedCount > 0 || filesRestoredCount > 0) {
             StringBuilder feedbackMsg = new StringBuilder();
-            if (filesCopiedCount > 0) {
-                feedbackMsg.append("Copied ").append(filesCopiedCount).append(" JAR(s). ");
+            if (filesCopiedCount > 0) { // It will always be > 0 if filesRestoredCount > 0 as well
+                feedbackMsg.append("Copied/updated ").append(filesCopiedCount).append(" JAR(s). ");
             }
-            if (filesUnhiddenCount > 0) {
-                feedbackMsg.append(filesUnhiddenCount).append(" previously hidden game(s) unhidden. ");
+            if (filesRestoredCount > 0) {
+                feedbackMsg.append(filesRestoredCount).append(" previously hidden/removed game(s) restored. ");
             }
             feedbackLabel.setText(feedbackMsg.toString().trim() + " List refreshed.");
-            refreshGameList(); // Refresh the list to show newly dropped/unhidden games
+            refreshGameList();
         } else {
-            // If no files were copied or unhidden, but the loop ran (e.g. non-JAR files dropped),
-            // provide a generic message. If 'files' was empty, this won't be reached.
             if (!files.isEmpty()) {
                  feedbackLabel.setText("No new JAR files processed. Drag JAR files here.");
             } else {
-                // This case should ideally not happen if processAndAddGameFiles is called with non-empty list.
-                // For safety, ensure label is reasonable.
                 dragDropLabel.setText("Drag & drop JARs or configure game directories in Settings.");
             }
         }
@@ -357,7 +382,10 @@ public class Main {
 
     // private static void loadGamesFromDirectory(String dirPath) { ... } // REMOVE or COMMENT OUT OLD METHOD
 
-    private static void scanDirectoryForGamesInternal(File directory, Set<String> scannedGamePaths, Set<String> ignoredGamesSet) { // Added ignoredGamesSet parameter
+    private static void scanDirectoryForGamesInternal(File directory,
+                                                      Set<String> scannedGamePaths,
+                                                      Set<String> ignoredGamesSet,
+                                                      Set<String> permanentlyRemovedGamesSet) { // Added permanentlyRemovedGamesSet
         if (!directory.exists() || !directory.isDirectory()) {
             // System.err.println("Cannot scan directory: " + directory.getAbsolutePath() + " - does not exist or not a directory.");
             return;
@@ -366,19 +394,21 @@ public class Main {
         File[] files = directory.listFiles((d, name) -> name.toLowerCase().endsWith(".jar"));
         if (files != null) {
             for (File file : files) {
-                String absolutePath = file.getAbsolutePath(); // Get absolute path once
+                String absolutePath = file.getAbsolutePath();
 
-                // Skip if already processed OR if it's in the ignored list
-                if (scannedGamePaths.contains(absolutePath) || IgnoredGamesConfig.isGameIgnored(absolutePath, ignoredGamesSet)) {
-                    // System.out.println("Skipping (already scanned or ignored): " + absolutePath);
+                // Skip if already processed OR if it's in the ignored list OR in the permanently removed list
+                if (scannedGamePaths.contains(absolutePath) ||
+                    IgnoredGamesConfig.isGameIgnored(absolutePath, ignoredGamesSet) ||
+                    PermanentlyRemovedGamesConfig.isGamePermanentlyRemoved(absolutePath, permanentlyRemovedGamesSet)) { // New check
+                    // System.out.println("Skipping (scanned, ignored, or permanently removed): " + absolutePath);
                     continue;
                 }
 
                 // Add to listModel and gameFiles
                 // Suffixing with parent directory name helps distinguish if same JAR name exists in multiple places
                 String gameDisplayName = file.getName();
-                if (directory.getName().equals("games") && file.getParentFile().equals(new File("games").getAbsoluteFile())) {
-                     // For files directly in our 'games' root, don't add "(games)" suffix
+                 if (directory.getName().equals("games") && file.getParentFile().equals(new File("games").getAbsoluteFile())) {
+                    // For files directly in our 'games' root, don't add "(games)" suffix
                 } else {
                      gameDisplayName += " (" + directory.getName() + ")";
                 }
@@ -392,7 +422,8 @@ public class Main {
         File[] subDirs = directory.listFiles(File::isDirectory);
         if (subDirs != null) {
             for (File subDir : subDirs) {
-                scanDirectoryForGamesInternal(subDir, scannedGamePaths, ignoredGamesSet); // Recursive call, pass ignoredGamesSet
+                // Pass all sets in recursive call
+                scanDirectoryForGamesInternal(subDir, scannedGamePaths, ignoredGamesSet, permanentlyRemovedGamesSet);
             }
         }
     }
@@ -401,15 +432,20 @@ public class Main {
         listModel.clear();
         gameFiles.clear();
         Set<String> scannedGamePaths = new HashSet<>();
-        Set<String> ignoredGamesSet = new HashSet<>(); // New: For storing ignored games
+        Set<String> ignoredGamesSet = new HashSet<>();
+        Set<String> permanentlyRemovedGamesSet = new HashSet<>(); // New: For permanently removed games
 
         try {
             ignoredGamesSet = IgnoredGamesConfig.loadIgnoredGames();
-            // System.out.println("Loaded " + ignoredGamesSet.size() + " ignored game path(s).");
         } catch (IOException e) {
             System.err.println("Error loading ignored games configuration: " + e.getMessage());
-            // If loading ignored games fails, proceed without ignoring.
-            // Alternatively, could show a user error, but this is less critical than game dirs.
+        }
+
+        try { // New try-catch for permanently removed games
+            permanentlyRemovedGamesSet = PermanentlyRemovedGamesConfig.loadPermanentlyRemovedGames();
+            // System.out.println("Loaded " + permanentlyRemovedGamesSet.size() + " permanently removed game path(s).");
+        } catch (IOException e) {
+            System.err.println("Error loading permanently removed games configuration: " + e.getMessage());
         }
 
         // 1. Always scan the local "games" directory
@@ -417,7 +453,8 @@ public class Main {
         if (!localGamesDir.exists()) {
             localGamesDir.mkdirs();
         }
-        scanDirectoryForGamesInternal(localGamesDir, scannedGamePaths, ignoredGamesSet); // Pass ignoredGamesSet
+        // Pass both sets to the scanning method
+        scanDirectoryForGamesInternal(localGamesDir, scannedGamePaths, ignoredGamesSet, permanentlyRemovedGamesSet);
 
         // 2. Scan all user-configured directories
         List<String> configuredPaths = new ArrayList<>();
@@ -429,7 +466,8 @@ public class Main {
 
         for (String path : configuredPaths) {
             File dir = new File(path);
-            scanDirectoryForGamesInternal(dir, scannedGamePaths, ignoredGamesSet); // Pass ignoredGamesSet
+            // Pass both sets to the scanning method
+            scanDirectoryForGamesInternal(dir, scannedGamePaths, ignoredGamesSet, permanentlyRemovedGamesSet);
         }
 
         if (listModel.isEmpty()) {

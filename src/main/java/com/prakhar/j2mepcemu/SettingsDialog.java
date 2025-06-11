@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.io.IOException; // Added for exception handling
 // Ensure com.prakhar.j2mepcemu.GameDirectoryConfig is implicitly available or import it if in different package.
+import com.prakhar.j2mepcemu.PermanentlyRemovedGamesConfig; // New
 
 public class SettingsDialog extends JDialog {
 
@@ -105,8 +106,23 @@ public class SettingsDialog extends JDialog {
                 String dirPath = selectedDir.getAbsolutePath();
                 if (!gameDirectoriesListModel.contains(dirPath)) {
                     gameDirectoriesListModel.addElement(dirPath);
-                    saveConfiguredDirectories(); // Save after adding
-                    Main.refreshGameList();
+                    saveConfiguredDirectories(); // This saves game_dirs.conf
+
+                    // New: Clear permanently removed games under this newly added directory path
+                    try {
+                        PermanentlyRemovedGamesConfig.removePermanentlyRemovedGamesUnderDirectory(dirPath);
+                        // System.out.println("Cleared any permanently removed entries under: " + dirPath);
+                    } catch (IOException e_perm_remove) {
+                        System.err.println("Error clearing permanently removed games for directory '" + dirPath + "': " + e_perm_remove.getMessage());
+                        // Optionally, show a non-critical error to the user if this fails
+                        JOptionPane.showMessageDialog(this,
+                                "Note: Could not automatically un-remove games previously removed from '" + selectedDir.getName() + "'.\n" +
+                                "If any games from this directory don't appear, try drag-and-dropping them.",
+                                "Notice",
+                                JOptionPane.INFORMATION_MESSAGE);
+                    }
+
+                    Main.refreshGameList(); // Refresh main list
                 } else {
                     JOptionPane.showMessageDialog(this, "Directory already added.", "Info", JOptionPane.INFORMATION_MESSAGE);
                 }
