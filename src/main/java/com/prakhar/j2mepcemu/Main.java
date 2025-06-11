@@ -92,42 +92,67 @@ public class Main {
         });
         gameListContextMenu.add(playItem);
 
-        JMenuItem removeItem = new JMenuItem("Remove");
-        removeItem.addActionListener(e -> {
+        // JMenuItem removeItem = new JMenuItem("Remove"); // OLD Line
+        JMenuItem hideItem = new JMenuItem("Hide"); // NEW Line - Renamed
+
+        // The ActionListener for 'hideItem' (previously 'removeItem') should be the one that
+        // adds the game to IgnoredGamesConfig and removes it from the list.
+        // Ensure its logic is as implemented in the previous plan for persistent hiding.
+        hideItem.addActionListener(e -> {
             int selectedIndex = gameList.getSelectedIndex();
             if (selectedIndex != -1) {
-                // Ensure indices are valid before removing
                 if (selectedIndex < gameFiles.size() && selectedIndex < listModel.getSize()) {
-                    File gameFileToRemove = gameFiles.get(selectedIndex); // Get the File object
-                    String gamePath = gameFileToRemove.getAbsolutePath();
-                    String gameDisplayName = listModel.getElementAt(selectedIndex); // For feedback
+                    File gameFileToHide = gameFiles.get(selectedIndex); // Get the File object
+                    String gamePath = gameFileToHide.getAbsolutePath();
+                    String gameDisplayName = listModel.getElementAt(selectedIndex);
 
                     try {
                         IgnoredGamesConfig.addIgnoredGame(gamePath); // Add to ignored list
 
-                        // Now remove from current view
                         gameFiles.remove(selectedIndex);
                         listModel.remove(selectedIndex);
 
-                        dragDropLabel.setText("'" + gameDisplayName + "' hidden. Drag & drop it again to unhide.");
-                        // System.out.println("Game hidden: " + gamePath);
+                        // Update feedback message to use "hidden"
+                        dragDropLabel.setText("'" + gameDisplayName + "' hidden. Manage in File > Hidden Games or drag & drop to unhide.");
 
                     } catch (IOException ex) {
                         System.err.println("Error trying to hide game '" + gamePath + "': " + ex.getMessage());
-                        JOptionPane.showMessageDialog(frame, // Use 'frame' as parent
+                        JOptionPane.showMessageDialog(frame,
                                 "Error hiding game: " + ex.getMessage(),
                                 "Error",
                                 JOptionPane.ERROR_MESSAGE);
-                        // Optionally, do not remove from list if saving ignore state failed
-                        // For now, it's removed from list even if ignore save fails, but error is shown.
                     }
                 } else {
-                    System.err.println("Error: Index mismatch when trying to remove game from list.");
+                    System.err.println("Error: Index mismatch when trying to hide game from list.");
+                    dragDropLabel.setText("Error hiding game. Index mismatch.");
+                }
+            }
+        });
+        // gameListContextMenu.add(removeItem); // OLD Line
+        gameListContextMenu.add(hideItem); // NEW Line - Add the renamed item
+
+        // New "Remove" (temporary) menu item
+        JMenuItem temporaryRemoveItem = new JMenuItem("Remove");
+        temporaryRemoveItem.addActionListener(e -> {
+            int selectedIndex = gameList.getSelectedIndex();
+            if (selectedIndex != -1) {
+                if (selectedIndex < gameFiles.size() && selectedIndex < listModel.getSize()) {
+                    String removedGameName = listModel.getElementAt(selectedIndex); // Get name for feedback
+
+                    // Simply remove from the current view's models
+                    gameFiles.remove(selectedIndex);
+                    listModel.remove(selectedIndex);
+
+                    // Update dragDropLabel with feedback for temporary removal
+                    dragDropLabel.setText("'" + removedGameName + "' removed from list for this session.");
+                    // System.out.println("Game temporarily removed: " + removedGameName);
+                } else {
+                    System.err.println("Error: Index mismatch when trying to temporarily remove game.");
                     dragDropLabel.setText("Error removing game. Index mismatch.");
                 }
             }
         });
-        gameListContextMenu.add(removeItem);
+        gameListContextMenu.add(temporaryRemoveItem); // Add the new item
 
         // Listener for showing the context menu
         gameList.addMouseListener(new MouseAdapter() {
