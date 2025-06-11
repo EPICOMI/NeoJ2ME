@@ -21,6 +21,8 @@ import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
+import com.prakhar.j2mepcemu.IgnoredGamesConfig; // New
+import java.io.IOException; // For handling exceptions from IgnoredGamesConfig
 import org.recompile.freej2me.FreeJ2ME;
 
 public class Main {
@@ -96,14 +98,32 @@ public class Main {
             if (selectedIndex != -1) {
                 // Ensure indices are valid before removing
                 if (selectedIndex < gameFiles.size() && selectedIndex < listModel.getSize()) {
-                    String removedGameName = listModel.getElementAt(selectedIndex); // Get name for feedback
-                    gameFiles.remove(selectedIndex);
-                    listModel.remove(selectedIndex);
-                    // Update dragDropLabel with feedback
-                    dragDropLabel.setText("'" + removedGameName + "' removed from list. May reappear on refresh.");
+                    File gameFileToRemove = gameFiles.get(selectedIndex); // Get the File object
+                    String gamePath = gameFileToRemove.getAbsolutePath();
+                    String gameDisplayName = listModel.getElementAt(selectedIndex); // For feedback
+
+                    try {
+                        IgnoredGamesConfig.addIgnoredGame(gamePath); // Add to ignored list
+
+                        // Now remove from current view
+                        gameFiles.remove(selectedIndex);
+                        listModel.remove(selectedIndex);
+
+                        dragDropLabel.setText("'" + gameDisplayName + "' hidden. Drag & drop it again to unhide.");
+                        // System.out.println("Game hidden: " + gamePath);
+
+                    } catch (IOException ex) {
+                        System.err.println("Error trying to hide game '" + gamePath + "': " + ex.getMessage());
+                        JOptionPane.showMessageDialog(frame, // Use 'frame' as parent
+                                "Error hiding game: " + ex.getMessage(),
+                                "Error",
+                                JOptionPane.ERROR_MESSAGE);
+                        // Optionally, do not remove from list if saving ignore state failed
+                        // For now, it's removed from list even if ignore save fails, but error is shown.
+                    }
                 } else {
                     System.err.println("Error: Index mismatch when trying to remove game from list.");
-                    dragDropLabel.setText("Error removing game. Index mismatch."); // Optional: feedback for error
+                    dragDropLabel.setText("Error removing game. Index mismatch.");
                 }
             }
         });
@@ -200,7 +220,7 @@ public class Main {
     }
 
     private static void processAndAddGameFiles(List<File> files, JLabel feedbackLabel) {
-        File gamesDir = new File("games");
+        File gamesDir = new File("games"); // Target directory for dropped games
         if (!gamesDir.exists()) {
             if (!gamesDir.mkdirs()) {
                 feedbackLabel.setText("Error: Cannot create 'games' directory.");
@@ -210,30 +230,68 @@ public class Main {
         }
 
         int filesCopiedCount = 0;
+        int filesUnhiddenCount = 0; // New: Track unhidden files
+        Set<String> currentIgnoredGames = null; // Load once
 
-        for (File file : files) {
+        try {
+            currentIgnoredGames = IgnoredGamesConfig.loadIgnoredGames();
+        } catch (IOException e) {
+            System.err.println("Error loading ignored games list: " + e.getMessage());
+            feedbackLabel.setText("Error loading ignored games list. Proceeding without unhide.");
+            // Initialize to empty set to avoid NullPointerExceptions later if loading fails
+            currentIgnoredGames = new HashSet<>();
+        }
+
+        for (File file : files) { // Iterate through files dropped by the user
             if (file.isFile() && file.getName().toLowerCase().endsWith(".jar")) {
-                File destFile = new File(gamesDir, file.getName());
+                File destFile = new File(gamesDir, file.getName()); // Potential destination in "games" dir
+                String destPath = destFile.getAbsolutePath();
+
                 try {
+                    // Check if this destination path is in the loaded ignored list
+                    if (IgnoredGamesConfig.isGameIgnored(destPath, currentIgnoredGames)) {
+                        IgnoredGamesConfig.removeIgnoredGame(destPath); // Unhide it (this will re-save the config)
+                        currentIgnoredGames.remove(destPath); // Update our current set to reflect the change
+                        filesUnhiddenCount++;
+                        // System.out.println("Game unhidden by drag & drop: " + destPath);
+                    }
+
+                    // Copy the file
                     Files.copy(file.toPath(), destFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
                     filesCopiedCount++;
-                    // The direct adding to listModel and gameFiles here is now redundant
-                    // as refreshGameList() will rescan everything.
-                    // We just need to make sure the file is copied.
+
                 } catch (IOException ex) {
-                    System.err.println("Failed to copy file: " + file.getName() + " - " + ex.getMessage());
-                    feedbackLabel.setText("Error copying " + file.getName());
+                    System.err.println("Error processing dropped file '" + file.getName() + "': " + ex.getMessage());
+                    // Show specific error related to this file to the user
+                    JOptionPane.showMessageDialog(frame,
+                            "Error processing dropped file '" + file.getName() + "':\n" + ex.getMessage(),
+                            "File Drop Error",
+                            JOptionPane.ERROR_MESSAGE);
+                    // Continue to next file if one fails
                 }
             }
         }
 
-        if (filesCopiedCount > 0) {
-            feedbackLabel.setText("Copied " + filesCopiedCount + " JAR file(s) to 'games' directory.");
-            refreshGameList(); // Refresh the list to show newly dropped games
+        if (filesCopiedCount > 0 || filesUnhiddenCount > 0) {
+            StringBuilder feedbackMsg = new StringBuilder();
+            if (filesCopiedCount > 0) {
+                feedbackMsg.append("Copied ").append(filesCopiedCount).append(" JAR(s). ");
+            }
+            if (filesUnhiddenCount > 0) {
+                feedbackMsg.append(filesUnhiddenCount).append(" previously hidden game(s) unhidden. ");
+            }
+            feedbackLabel.setText(feedbackMsg.toString().trim() + " List refreshed.");
+            refreshGameList(); // Refresh the list to show newly dropped/unhidden games
         } else {
-            feedbackLabel.setText("No new JAR files were processed. Drag JAR files here.");
-            // Optionally call refreshGameList() even if no files copied, if other state might need update
-            // but typically only needed if changes occurred.
+            // If no files were copied or unhidden, but the loop ran (e.g. non-JAR files dropped),
+            // provide a generic message. If 'files' was empty, this won't be reached.
+            if (!files.isEmpty()) {
+                 feedbackLabel.setText("No new JAR files processed. Drag JAR files here.");
+            } else {
+                // This case should ideally not happen if processAndAddGameFiles is called with non-empty list.
+                // For safety, ensure label is reasonable.
+                dragDropLabel.setText("Drag & drop JARs or configure game directories in Settings.");
+            }
         }
     }
 
@@ -274,7 +332,7 @@ public class Main {
 
     // private static void loadGamesFromDirectory(String dirPath) { ... } // REMOVE or COMMENT OUT OLD METHOD
 
-    private static void scanDirectoryForGamesInternal(File directory, Set<String> scannedGamePaths) {
+    private static void scanDirectoryForGamesInternal(File directory, Set<String> scannedGamePaths, Set<String> ignoredGamesSet) { // Added ignoredGamesSet parameter
         if (!directory.exists() || !directory.isDirectory()) {
             // System.err.println("Cannot scan directory: " + directory.getAbsolutePath() + " - does not exist or not a directory.");
             return;
@@ -283,8 +341,12 @@ public class Main {
         File[] files = directory.listFiles((d, name) -> name.toLowerCase().endsWith(".jar"));
         if (files != null) {
             for (File file : files) {
-                if (scannedGamePaths.contains(file.getAbsolutePath())) {
-                    continue; // Already processed this file, skip
+                String absolutePath = file.getAbsolutePath(); // Get absolute path once
+
+                // Skip if already processed OR if it's in the ignored list
+                if (scannedGamePaths.contains(absolutePath) || IgnoredGamesConfig.isGameIgnored(absolutePath, ignoredGamesSet)) {
+                    // System.out.println("Skipping (already scanned or ignored): " + absolutePath);
+                    continue;
                 }
 
                 // Add to listModel and gameFiles
@@ -298,14 +360,14 @@ public class Main {
 
                 listModel.addElement(gameDisplayName);
                 gameFiles.add(file);
-                scannedGamePaths.add(file.getAbsolutePath()); // Mark as processed
+                scannedGamePaths.add(absolutePath);
             }
         }
 
         File[] subDirs = directory.listFiles(File::isDirectory);
         if (subDirs != null) {
             for (File subDir : subDirs) {
-                scanDirectoryForGamesInternal(subDir, scannedGamePaths); // Recursive call
+                scanDirectoryForGamesInternal(subDir, scannedGamePaths, ignoredGamesSet); // Recursive call, pass ignoredGamesSet
             }
         }
     }
@@ -313,32 +375,36 @@ public class Main {
     private static void loadGamesFromConfiguredDirectories() {
         listModel.clear();
         gameFiles.clear();
-        Set<String> scannedGamePaths = new HashSet<>(); // To prevent duplicates if "games" is also a configured path
+        Set<String> scannedGamePaths = new HashSet<>();
+        Set<String> ignoredGamesSet = new HashSet<>(); // New: For storing ignored games
+
+        try {
+            ignoredGamesSet = IgnoredGamesConfig.loadIgnoredGames();
+            // System.out.println("Loaded " + ignoredGamesSet.size() + " ignored game path(s).");
+        } catch (IOException e) {
+            System.err.println("Error loading ignored games configuration: " + e.getMessage());
+            // If loading ignored games fails, proceed without ignoring.
+            // Alternatively, could show a user error, but this is less critical than game dirs.
+        }
 
         // 1. Always scan the local "games" directory
         File localGamesDir = new File("games");
         if (!localGamesDir.exists()) {
-            localGamesDir.mkdirs(); // Ensure it exists for drag & drop consistency
+            localGamesDir.mkdirs();
         }
-        // System.out.println("Scanning default 'games' directory: " + localGamesDir.getAbsolutePath());
-        scanDirectoryForGamesInternal(localGamesDir, scannedGamePaths);
+        scanDirectoryForGamesInternal(localGamesDir, scannedGamePaths, ignoredGamesSet); // Pass ignoredGamesSet
 
         // 2. Scan all user-configured directories
-        List<String> configuredPaths = new ArrayList<>(); // Initialize to empty list
+        List<String> configuredPaths = new ArrayList<>();
         try {
             configuredPaths = GameDirectoryConfig.loadDirectories();
         } catch (java.io.IOException e) {
             System.err.println("Error loading game directory configurations: " + e.getMessage());
-            // Optionally, provide feedback to the user via the UI, though dragDropLabel is mostly for game status
-            // dragDropLabel.setText("Error loading directory config: " + e.getMessage());
-            // For now, logging to System.err is consistent with other parts of the initial load sequence.
         }
 
-        // System.out.println("Scanning " + configuredPaths.size() + " configured directories.");
         for (String path : configuredPaths) {
             File dir = new File(path);
-            // System.out.println("Scanning configured directory: " + dir.getAbsolutePath());
-            scanDirectoryForGamesInternal(dir, scannedGamePaths);
+            scanDirectoryForGamesInternal(dir, scannedGamePaths, ignoredGamesSet); // Pass ignoredGamesSet
         }
 
         if (listModel.isEmpty()) {
