@@ -7,6 +7,7 @@ import java.awt.dnd.*;
 import java.awt.datatransfer.*;
 import java.awt.event.*;
 import java.io.File;
+import java.net.URL; // Added for diagnostic code
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.io.IOException;
@@ -38,6 +39,18 @@ public class Main {
     public static void main(String[] args) {
         System.setProperty("jna.debug_load", "true");
         System.setProperty("jna.debug_load.jna", "true"); // More verbose JNA loading
+
+        // Diagnostic: Check if ClassLoader can find the resource
+        String resourcePath = "com/sun/jna/platform/win32-x86-64/SDL2.dll";
+        // Using a known class from the same module/project (Main.class) to get the ClassLoader
+        // This is generally more reliable than Thread.currentThread().getContextClassLoader() in some environments.
+        java.net.URL resourceUrl = com.prakhar.j2mepcemu.Main.class.getClassLoader().getResource(resourcePath);
+        if (resourceUrl != null) {
+            System.out.println("JNA Diagnostic: Resource found by ClassLoader: " + resourceUrl.toExternalForm());
+        } else {
+            System.err.println("JNA Diagnostic: Resource NOT FOUND by ClassLoader: " + resourcePath);
+        }
+        // End Diagnostic
 
         // String projectRoot = System.getProperty("user.dir");
         // // Path to the resources directory within the emu-core module source
