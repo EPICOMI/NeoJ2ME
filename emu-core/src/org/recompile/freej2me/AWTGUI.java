@@ -1300,7 +1300,7 @@ public final class AWTGUI
         System.out.println("DEBUG_GP_ENTRY: processGamepadInput PASSED INITIAL CHECKS. Joystick name: " + io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickName(joystick));
 
 		// Update joystick states
-		io.github.libsdl4j.api.Sdl.SDL_JoystickUpdate(); // Corrected to Sdl class as per subtask
+		io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickUpdate();
 		// System.out.println("DEBUG_GP: SDL_JoystickUpdate() called."); // Optional: spammy
 
         if (actionKeys == null || actionKeys.length == 0) {
