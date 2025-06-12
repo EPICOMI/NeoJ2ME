@@ -1271,34 +1271,36 @@ public final class AWTGUI
 	}
 
 	public void processGamepadInput(Component eventSource) {
-		// System.out.println("DEBUG_GP: processGamepadInput called."); // Optional: can be too spammy
+        System.out.println("DEBUG_GP_ENTRY: processGamepadInput ENTERED");
 
 		if (joysticks == null || joysticks.isEmpty()) {
-			// System.out.println("DEBUG_GP: No joysticks available or list is null."); // Optional
+            System.out.println("DEBUG_GP_ENTRY: processGamepadInput EXIT - joysticks list is null or empty.");
 			return;
 		}
 		if (config == null || config.sysSettings == null) {
-			System.err.println("DEBUG_GP: Config or sysSettings is null.");
+			System.err.println("DEBUG_GP_ENTRY: processGamepadInput EXIT - Config or sysSettings is null.");
 			return;
 		}
+        // Assuming initActionToKeyboardKeyCodeMap() is called if map is empty,
+        // and it would log if it's still empty.
 		if (actionToKeyboardKeyCodeMap == null || actionToKeyboardKeyCodeMap.isEmpty()) {
-			// System.err.println("DEBUG_GP: actionToKeyboardKeyCodeMap is not initialized. Initializing now."); // Already has defensive init
-			initActionToKeyboardKeyCodeMap(); // Ensure it's initialized
-			if (actionToKeyboardKeyCodeMap.isEmpty()){ // Still empty after init
-				 System.err.println("DEBUG_GP: actionToKeyboardKeyCodeMap is STILL EMPTY after re-init. Cannot process input.");
+			initActionToKeyboardKeyCodeMap();
+			if (actionToKeyboardKeyCodeMap.isEmpty()){
+				 System.err.println("DEBUG_GP_ENTRY: processGamepadInput EXIT - actionToKeyboardKeyCodeMap is STILL EMPTY after re-init.");
 				 return;
 			}
 		}
 
 		// Assuming we are using the first joystick
-		SDL_Joystick joystick = joysticks.get(0);
+		io.github.libsdl4j.api.joystick.SDL_Joystick joystick = joysticks.get(0); // Assuming at least one, given prior checks
 		if (joystick == null) {
-			System.err.println("DEBUG_GP: Joystick object at index 0 is null.");
+			System.err.println("DEBUG_GP_ENTRY: processGamepadInput EXIT - Joystick object at index 0 is null.");
 			return;
 		}
+        System.out.println("DEBUG_GP_ENTRY: processGamepadInput PASSED INITIAL CHECKS. Joystick name: " + io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickName(joystick));
 
 		// Update joystick states
-		SdlJoystick.SDL_JoystickUpdate();
+		io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickUpdate(); // Corrected to SdlJoystick class
 		// System.out.println("DEBUG_GP: SDL_JoystickUpdate() called."); // Optional: spammy
 
 		for (String actionKeyBase : actionKeys) { // actionKeys should be {"LeftSoft", "RightSoft", ...}
