@@ -940,7 +940,7 @@ public class FreeJ2ME
 							// System.out.println("DEBUG_GP_CALL: Calling processGamepadInput..."); // Optional: can be spammy
 							awtGUI.processGamepadInput(lcd);
 						} else {
-							System.out.println("DEBUG_GP_CALL: SKIPPING processGamepadInput because awtGui.hasLoadedFile() is false. Game loaded: " + platform.isAppRunning());
+							System.out.println("DEBUG_GP_CALL: SKIPPING processGamepadInput because awtGui.hasLoadedFile() is false.");
 						}
 					} else {
 						if (awtGUI == null) System.out.println("DEBUG_GP_CALL: SKIPPING processGamepadInput because awtGui is null.");
