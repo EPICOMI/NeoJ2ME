@@ -83,6 +83,9 @@ public class Config
 
 	public HashMap<String, String> settings = new HashMap<String, String>(4);
 	public HashMap<String, String> sysSettings = new HashMap<String, String>(4);
+	// Structure: Map<GamepadName, Map<J2MEActionName, JInputComponentIdentifierString>>
+	private Map<String, Map<String, String>> gamepadMappings = new HashMap<>();
+
 
 	public Config()
 	{
@@ -265,6 +268,27 @@ public class Config
 			inputKeycodes[19] = Integer.parseInt(sysSettings.get("input_FastForward"));
 			inputKeycodes[20] = Integer.parseInt(sysSettings.get("input_Screenshot"));
 			inputKeycodes[21] = Integer.parseInt(sysSettings.get("input_PauseResume"));
+
+			// Load Gamepad Mappings from sysSettings
+			gamepadMappings.clear();
+			for (Map.Entry<String, String> entry : sysSettings.entrySet()) {
+				String key = entry.getKey();
+				if (key.startsWith("gamepad.")) {
+					try {
+						String[] parts = key.substring("gamepad.".length()).split("\\.", 2);
+						if (parts.length == 2) {
+							String gamepadName = parts[0];
+							String j2meActionName = parts[1];
+							String jinputComponentId = entry.getValue();
+
+							gamepadMappings.putIfAbsent(gamepadName, new HashMap<>());
+							gamepadMappings.get(gamepadName).put(j2meActionName, jinputComponentId);
+						}
+					} catch (Exception parseEx) {
+						Mobile.log(Mobile.LOG_ERROR, Config.class.getPackage().getName() + "." + Config.class.getSimpleName() + ": " + "Problem parsing gamepad mapping: " + key + " Error: " + parseEx.getMessage());
+					}
+				}
+			}
 		}
 		catch (Exception e)
 		{
@@ -293,6 +317,16 @@ public class Config
 
 
 			/* Save system file, also sorted alphabetically */
+			// First, update sysSettings with any gamepad mappings
+			for (Map.Entry<String, Map<String, String>> gamepadEntry : gamepadMappings.entrySet()) {
+				String gamepadName = gamepadEntry.getKey();
+				for (Map.Entry<String, String> mappingEntry : gamepadEntry.getValue().entrySet()) {
+					String j2meActionName = mappingEntry.getKey();
+					String jinputComponentId = mappingEntry.getValue();
+					sysSettings.put("gamepad." + gamepadName + "." + j2meActionName, jinputComponentId);
+				}
+			}
+
 			sortedKeys = new ArrayList<>(sysSettings.keySet());
         	Collections.sort(sortedKeys);
 
@@ -514,4 +548,28 @@ public class Config
 		onChange.run();
 	}
 
+	// Gamepad mapping methods
+	public Map<String, String> getGamepadMappings(String gamepadName) {
+		return gamepadMappings.getOrDefault(gamepadName, new HashMap<>());
+	}
+
+	public void setGamepadMappings(String gamepadName, Map<String, String> mappings) {
+		if (mappings == null || mappings.isEmpty()) {
+			gamepadMappings.remove(gamepadName);
+			// Also remove corresponding entries from sysSettings to clean up file
+			List<String> keysToRemove = new ArrayList<>();
+			for (String key : sysSettings.keySet()) {
+				if (key.startsWith("gamepad." + gamepadName + ".")) {
+					keysToRemove.add(key);
+				}
+			}
+			for (String key : keysToRemove) {
+				sysSettings.remove(key);
+			}
+		} else {
+			gamepadMappings.put(gamepadName, new HashMap<>(mappings)); // Store a copy
+		}
+		saveConfig(); // Persist changes
+		onChange.run(); // Notify listeners if any
+	}
 }

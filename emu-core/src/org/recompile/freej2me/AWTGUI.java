@@ -44,9 +44,19 @@ import java.io.File;
 import java.io.FilenameFilter;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+
 
 import org.recompile.mobile.Mobile;
 import org.recompile.mobile.MobilePlatform;
+import net.java.games.input.Controller;
+import net.java.games.input.Component;
+import net.java.games.input.Event;
+import net.java.games.input.EventQueue;
+
 
 public final class AWTGUI 
 {
@@ -66,6 +76,13 @@ public final class AWTGUI
 
 	/* And this is meant to be a local reference of FreeJ2ME's config */
 	private Config config;
+	private List<Controller> detectedGamepads;
+	private Controller selectedGamepadController;
+	private volatile boolean isCapturingInput = false;
+	private Button currentMappingButton = null;
+	private String actionToMap = null;
+	private Map<String, String> currentGamepadMappings = new HashMap<>(); // J2MEActionName -> JInputComponentID
+
 
 	/* AWT's main MenuBar */
 	final MenuBar menuBar = new MenuBar();
@@ -88,24 +105,34 @@ public final class AWTGUI
 	/* Dialogs for resolution changes, restart notifications, MemStats and info about FreeJ2ME */
 	final Dialog[] awtDialogs = 
 	{
-		new Dialog(main , "Set LCD Resolution", true),
-		new Dialog(main , "About FreeJ2ME", true),
-		new Dialog(main, "FreeJ2ME MemStat", false),
-		new Dialog(main, "Restart Required", true),
-		new Dialog(main, "Key Mapping", true),
+		new Dialog(main , "Set LCD Resolution", true), // 0
+		new Dialog(main , "About FreeJ2ME", true),     // 1
+		new Dialog(main, "FreeJ2ME MemStat", false),  // 2
+		new Dialog(main, "Restart Required", true),   // 3
+		new Dialog(main, "Key Mapping", true),        // 4
 	};
 	
 	final Button[] awtButtons = 
 	{
-		new Button("Close"),
-		new Button("Apply"),
-		new Button("Cancel"),
-		new Button("Close FreeJ2ME"),
-		new Button("Restart later"),
-		new Button("Apply Inputs"),
-		new Button("Cancel")
+		new Button("Close"),          // 0 About
+		new Button("Apply"),          // 1 Res
+		new Button("Cancel"),         // 2 Res
+		new Button("Close FreeJ2ME"), // 3 Restart
+		new Button("Restart later"),  // 4 Restart
+		new Button("Apply Inputs"),   // 5 Mapping
+		new Button("Cancel")          // 6 Mapping
 	};
 	
+	// Gamepad UI Elements
+	private Choice gamepadSelectionChoice;
+	private Map<String, Button> gamepadMappingButtons = new HashMap<>();
+	private String[] gamepadActionsToMap = {
+		"UP", "DOWN", "LEFT", "RIGHT", "FIRE",
+		"GAME_A", "GAME_B", "GAME_C", "GAME_D",
+		"SOFT_LEFT", "SOFT_RIGHT", "STAR", "POUND"
+		// "NUM0", "NUM1", ... "NUM9" // Optional: if direct numkey mapping is desired
+	};
+
 
 	/* Log Level submenu */
 	Menu logLevel = new Menu("Log Level");
@@ -277,9 +304,10 @@ public final class AWTGUI
 	final CheckboxMenuItem M3GWireframe = new CheckboxMenuItem("Wireframe Mode");
 
 
-	public AWTGUI(Config config)
+	public AWTGUI(Config config, List<Controller> gamepads)
 	{
 		this.config = config;
+		this.detectedGamepads = gamepads != null ? gamepads : new ArrayList<>();
 
 		resChoice.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
 		totalMemLabel.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
@@ -348,14 +376,18 @@ public final class AWTGUI
 		/* Input mapping dialog: It's a grid, so a few tricks had to be employed to align everything up */
 		awtDialogs[4].setBackground(FreeJ2ME.freeJ2MEBGColor);
         awtDialogs[4].setForeground(Color.ORANGE);
-		awtDialogs[4].setLayout(new GridLayout(0, 3)); /* Get as many rows as needed, as long it still uses only 3 columns */
-		awtDialogs[4].setSize(240, 440);
+		awtDialogs[4].setLayout(new java.awt.BorderLayout()); // Main layout for the dialog
+		awtDialogs[4].setSize(500, 700); // Adjusted size
 		awtDialogs[4].setLocationRelativeTo(main);
-		awtDialogs[4].setResizable(false);
+		awtDialogs[4].setResizable(true);
 		
 
+		// Panel for Keyboard Mappings (Top)
+		java.awt.Panel keyboardPanel = new java.awt.Panel(new GridLayout(0, 3, 5, 5)); // rows, cols, hgap, vgap
+		keyboardPanel.setBackground(FreeJ2ME.freeJ2MEBGColor);
+
 		// Setup input button colors
-		awtButtons[5].setBackground(FreeJ2ME.freeJ2MEDragColor);
+		awtButtons[5].setBackground(FreeJ2ME.freeJ2MEDragColor); // Apply Inputs (now for both)
 		awtButtons[5].setForeground(Color.GREEN);
 
 		awtButtons[6].setBackground(FreeJ2ME.freeJ2MEDragColor);
@@ -440,12 +472,115 @@ public final class AWTGUI
 		awtDialogs[4].add(new Label(""));
 		
 		awtDialogs[4].add(new Label("Slowdown"));
-		awtDialogs[4].add(new Label("TODO"));
-		awtDialogs[4].add(new Label("TODO"));
+		keyboardPanel.add(new Label("Map keys by"));
+		keyboardPanel.add(new Label("clicking each"));
+		keyboardPanel.add(new Label("button below"));
 
-		awtDialogs[4].add(new Label("TODO"));
-		awtDialogs[4].add(new Label(""));
-		awtDialogs[4].add(new Label(""));
+		// keyboardPanel.add(awtButtons[5]); // Apply and Cancel buttons will be at the bottom of the main dialog
+		// keyboardPanel.add(new Label(""));
+		// keyboardPanel.add(awtButtons[6]);
+
+		keyboardPanel.add(new Label("-----------------------"));
+		keyboardPanel.add(new Label("--- Keyboard ---"));
+		keyboardPanel.add(new Label("-----------------------"));
+
+		// Adding existing keyboard inputButtons to keyboardPanel
+		keyboardPanel.add(inputButtons[0]); keyboardPanel.add(new Label("")); keyboardPanel.add(inputButtons[1]);
+		keyboardPanel.add(new Label("")); keyboardPanel.add(inputButtons[2]); keyboardPanel.add(new Label(""));
+		keyboardPanel.add(inputButtons[3]); keyboardPanel.add(inputButtons[4]); keyboardPanel.add(inputButtons[5]);
+		keyboardPanel.add(new Label("")); keyboardPanel.add(inputButtons[6]); keyboardPanel.add(new Label(""));
+		keyboardPanel.add(new Label("")); keyboardPanel.add(new Label("")); keyboardPanel.add(new Label(""));
+		keyboardPanel.add(inputButtons[7]); keyboardPanel.add(inputButtons[8]); keyboardPanel.add(inputButtons[9]);
+		keyboardPanel.add(inputButtons[10]); keyboardPanel.add(inputButtons[11]); keyboardPanel.add(inputButtons[12]);
+		keyboardPanel.add(inputButtons[13]); keyboardPanel.add(inputButtons[14]); keyboardPanel.add(inputButtons[15]);
+		keyboardPanel.add(inputButtons[16]); keyboardPanel.add(inputButtons[17]); keyboardPanel.add(inputButtons[18]);
+		keyboardPanel.add(new Label("-----------------------"));
+		keyboardPanel.add(new Label("--- Hotkeys ---"));
+		keyboardPanel.add(new Label("-----------------------"));
+		keyboardPanel.add(new Label("Fast-Forward")); keyboardPanel.add(new Label("Screenshot")); keyboardPanel.add(new Label("Pause/Resume"));
+		keyboardPanel.add(inputButtons[19]); keyboardPanel.add(inputButtons[20]); keyboardPanel.add(inputButtons[21]);
+		// keyboardPanel.add(new Label("")); keyboardPanel.add(new Label("")); keyboardPanel.add(new Label(""));
+		// keyboardPanel.add(new Label("Slowdown")); keyboardPanel.add(new Label("TODO")); keyboardPanel.add(new Label("TODO"));
+		// keyboardPanel.add(new Label("TODO")); keyboardPanel.add(new Label("")); keyboardPanel.add(new Label(""));
+
+		awtDialogs[4].add(keyboardPanel, java.awt.BorderLayout.NORTH);
+
+		// Panel for Gamepad Mappings (Center)
+		java.awt.Panel gamepadPanel = new java.awt.Panel(new java.awt.BorderLayout(5,5));
+		gamepadPanel.setBackground(FreeJ2ME.freeJ2MEBGColor);
+
+		java.awt.Panel gamepadSelectionPanel = new java.awt.Panel(new FlowLayout(FlowLayout.LEFT));
+		gamepadSelectionPanel.setBackground(FreeJ2ME.freeJ2MEBGColor);
+		gamepadSelectionChoice = new Choice();
+		gamepadSelectionChoice.add("None (Keyboard Only)");
+		if (this.detectedGamepads != null) {
+			for (Controller controller : this.detectedGamepads) {
+				gamepadSelectionChoice.add(controller.getName());
+			}
+		}
+		gamepadSelectionChoice.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent e) {
+				if (e.getStateChange() == ItemEvent.SELECTED) {
+					String selectedName = gamepadSelectionChoice.getSelectedItem();
+					if ("None (Keyboard Only)".equals(selectedName)) {
+						selectedGamepadController = null;
+						for (Button btn : gamepadMappingButtons.values()) {
+							btn.setLabel("N/A");
+							btn.setEnabled(false);
+						}
+					} else {
+						for (Controller c : detectedGamepads) {
+							if (c.getName().equals(selectedName)) {
+								selectedGamepadController = c;
+								for (Button btn : gamepadMappingButtons.values()) {
+									btn.setEnabled(true);
+								}
+								loadGamepadMappingsForSelectedController();
+								break;
+							}
+						}
+					}
+				}
+			}
+		});
+		gamepadSelectionPanel.add(new Label("Select Gamepad:"));
+		gamepadSelectionPanel.add(gamepadSelectionChoice);
+		gamepadPanel.add(gamepadSelectionPanel, java.awt.BorderLayout.NORTH);
+
+		java.awt.Panel gamepadButtonGrid = new java.awt.Panel(new GridLayout(0, 3, 5, 5)); // Grid for mapping buttons
+		gamepadButtonGrid.setBackground(FreeJ2ME.freeJ2MEBGColor);
+		for (String action : gamepadActionsToMap) {
+			gamepadButtonGrid.add(new Label(action + ":"));
+			Button mapBtn = new Button("Press to Map");
+			mapBtn.setActionCommand("MapGamepad_" + action);
+			mapBtn.addActionListener(menuItemListener);
+			gamepadMappingButtons.put(action, mapBtn);
+			gamepadButtonGrid.add(mapBtn);
+			// gamepadButtonGrid.add(new Label("")); // Optional: if a 3rd column for status is desired
+		}
+		gamepadPanel.add(gamepadButtonGrid, java.awt.BorderLayout.CENTER);
+
+		boolean enableGamepadUI = (selectedGamepadController != null);
+		if (detectedGamepads.isEmpty()) enableGamepadUI = false; // No gamepads, disable UI
+
+		for (Button btn : gamepadMappingButtons.values()) {
+			btn.setEnabled(enableGamepadUI);
+			if (!enableGamepadUI) btn.setLabel("N/A");
+		}
+		if (detectedGamepads.isEmpty()) {
+		    gamepadSelectionChoice.select("None (Keyboard Only)");
+		    gamepadSelectionChoice.setEnabled(false);
+		}
+
+
+		awtDialogs[4].add(gamepadPanel, java.awt.BorderLayout.CENTER);
+
+		// Panel for Apply/Cancel buttons (South)
+		java.awt.Panel bottomButtonPanel = new java.awt.Panel(new FlowLayout(FlowLayout.CENTER));
+		bottomButtonPanel.setBackground(FreeJ2ME.freeJ2MEBGColor);
+		bottomButtonPanel.add(awtButtons[5]); // Apply Inputs
+		bottomButtonPanel.add(awtButtons[6]); // Cancel Inputs
+		awtDialogs[4].add(bottomButtonPanel, java.awt.BorderLayout.SOUTH);
 
 
 		awtDialogs[3].setBackground(FreeJ2ME.freeJ2MEBGColor);
@@ -471,11 +606,14 @@ public final class AWTGUI
 		awtButtons[3].setActionCommand("CloseFreeJ2ME");
 		awtButtons[4].setActionCommand("RestartLater");
 		mapInputs.setActionCommand("MapInputs");
-		awtButtons[5].setActionCommand("ApplyInputs");
-		awtButtons[6].setActionCommand("CancelInputs");
+		awtButtons[5].setActionCommand("ApplyInputs"); // Apply (Keyboard & Gamepad)
+		awtButtons[6].setActionCommand("CancelInputs"); // Cancel (Keyboard & Gamepad)
 
 		showPlayer.setActionCommand("ShowPlayer");
 		
+		// Add action listeners for new gamepad mapping buttons via UIListener
+		// The action commands are set like "MapGamepad_UP", "MapGamepad_FIRE" etc.
+
 		openMenuItem.addActionListener(menuItemListener);
 		closeMenuItem.addActionListener(menuItemListener);
 		scrShot.addActionListener(menuItemListener);
@@ -1063,13 +1201,52 @@ public final class AWTGUI
 
 			else if(a.getActionCommand() == "ApplyInputs") 
 			{
+				// Save Keyboard Mappings
 				System.arraycopy(newInputKeycodes, 0, inputKeycodes, 0, inputKeycodes.length);
-				config.updateAWTInputs();
+				config.updateAWTInputs(); // This saves keyboard inputKeycodes to config.settings
+
+				// Save Gamepad Mappings
+				if (selectedGamepadController != null && currentGamepadMappings != null) {
+					config.setGamepadMappings(selectedGamepadController.getName(), currentGamepadMappings);
+					// config.save() is called within setGamepadMappings
+					Mobile.log(Mobile.LOG_INFO, "Gamepad mappings for " + selectedGamepadController.getName() + " applied and saved.");
+				} else if (selectedGamepadController == null && currentGamepadMappings != null && !currentGamepadMappings.isEmpty()) {
+					// This case should ideally not happen if UI logic is correct (no controller selected, but mappings changed)
+					Mobile.log(Mobile.LOG_WARNING, "Attempted to save gamepad mappings but no gamepad was selected. Mappings not saved.");
+				}
 				awtDialogs[4].setVisible(false); 
 			}
 
-			else if(a.getActionCommand() == "CancelInputs") { awtDialogs[4].setVisible(false); }
-
+			else if(a.getActionCommand() == "CancelInputs")
+			{
+				// Reset any temporarily changed mappings to what's in config by reloading them
+				if (selectedGamepadController != null) {
+					loadGamepadMappingsForSelectedController(); // This will reload from config, discarding changes in currentGamepadMappings
+				} else {
+					// If no gamepad is selected, clear any transient mappings
+					currentGamepadMappings.clear();
+					for (String action : gamepadActionsToMap) {
+						Button btn = gamepadMappingButtons.get(action);
+						if (btn != null) {
+							btn.setLabel("N/A");
+							btn.setEnabled(false);
+						}
+					}
+				}
+				awtDialogs[4].setVisible(false);
+			}
+			else if (a.getActionCommand() != null && a.getActionCommand().startsWith("MapGamepad_"))
+			{
+				if (selectedGamepadController == null) {
+					Mobile.log(Mobile.LOG_WARNING, "No gamepad selected for mapping.");
+					return;
+				}
+				actionToMap = a.getActionCommand().substring("MapGamepad_".length());
+				currentMappingButton = (Button)a.getSource();
+				currentMappingButton.setLabel("Waiting...");
+				isCapturingInput = true;
+				startCapturingGamepadInput(); // Needs implementation
+			}
 			else if(a.getActionCommand() == "ShowPlayer") 
 			{ 
 				// Create FreeJ2MEPlayer Dialog instance and show it;
@@ -1100,4 +1277,154 @@ public final class AWTGUI
 	public String getJarPath() { return jarfile; }
 
 	public boolean hasJustLoaded() { return firstLoad; }
+
+	private void loadGamepadMappingsForSelectedController() {
+		if (selectedGamepadController == null) {
+			// No controller selected, clear/disable mapping buttons
+			this.currentGamepadMappings.clear();
+			for (String action : gamepadActionsToMap) {
+				Button btn = gamepadMappingButtons.get(action);
+				if (btn != null) {
+					btn.setLabel("N/A");
+					btn.setEnabled(false);
+				}
+			}
+			return;
+		}
+
+		String gamepadName = selectedGamepadController.getName();
+		Map<String, String> mappings = config.getGamepadMappings(gamepadName); // J2MEActionName -> JInputComponentID
+
+		Mobile.log(Mobile.LOG_INFO, "Loading mappings for: " + gamepadName);
+
+		for (String action : gamepadActionsToMap) {
+			Button btn = gamepadMappingButtons.get(action);
+			if (btn != null) {
+				String mappedComponentId = mappings.getOrDefault(action, "Press to Map");
+				btn.setLabel(mappedComponentId);
+				btn.setEnabled(true); // Ensure button is enabled when a controller is selected
+			}
+		}
+		this.currentGamepadMappings = new HashMap<>(mappings); // Keep a working copy for edits
+	}
+
+	private void startCapturingGamepadInput() {
+		if (selectedGamepadController == null || actionToMap == null || currentMappingButton == null) {
+			isCapturingInput = false;
+			return;
+		}
+		Mobile.log(Mobile.LOG_INFO, "AWTGUI: Waiting for input for " + actionToMap + " on " + selectedGamepadController.getName() + "...");
+
+		// Disable other mapping buttons
+		for (Button btn : gamepadMappingButtons.values()) {
+			if (btn != currentMappingButton) {
+				btn.setEnabled(false);
+			}
+		}
+		// Also disable keyboard mapping buttons
+		for (Button btn : inputButtons) {
+			btn.setEnabled(false);
+		}
+
+
+		new Thread(() -> {
+			long startTime = System.currentTimeMillis();
+			final long TIMEOUT_MS = 5000; // 5 seconds timeout
+			final float AXIS_THRESHOLD = 0.2f; // Minimum deflection for an axis to be considered "active"
+
+			boolean inputCaptured = false;
+
+			while (isCapturingInput && (System.currentTimeMillis() - startTime) < TIMEOUT_MS) {
+				selectedGamepadController.poll();
+				EventQueue queue = selectedGamepadController.getEventQueue();
+				Event event = new Event();
+
+				while (queue.getNextEvent(event)) {
+					Component comp = event.getComponent();
+					float value = event.getValue();
+					Component.Identifier id = comp.getIdentifier();
+					String compIdName = id.getName(); // This is what we store (e.g., "0", "x", "pov")
+					String compDisplayName = comp.getName(); // Human-readable (e.g., "Button 0", "X Axis")
+
+					// Determine if this event is significant enough for mapping
+					boolean significantEvent = false;
+					if (id instanceof Component.Identifier.Button) {
+						if (value == 1.0f) { // Only map button presses, not releases
+							significantEvent = true;
+						}
+					} else if (id == Component.Identifier.Axis.POV) {
+						if (value != POV.OFF && value != POV.CENTER) { // Any POV direction change from center
+							significantEvent = true;
+							// For POV, we map the "pov" component itself, not its specific value here.
+							// The direction is interpreted later during event processing in MobilePlatform.
+						}
+					} else if (comp.isAnalog()) { // Other analog axes
+						if (Math.abs(value) > AXIS_THRESHOLD) {
+							significantEvent = true;
+							// For axes, we map the axis component itself (e.g., "x", "y").
+							// The direction/threshold is interpreted later in MobilePlatform.
+						}
+					} else if (id instanceof Component.Identifier.Key) { // Gamepad may have actual keys
+					    significantEvent = true; // Treat as a button press
+					}
+
+
+					if (significantEvent) {
+						final String finalCompIdName = compIdName;
+						final String finalCompDisplayName = compDisplayName;
+						final String actionBeingMapped = actionToMap;
+
+						java.awt.EventQueue.invokeLater(() -> {
+							if (currentMappingButton != null && actionBeingMapped != null) {
+								currentMappingButton.setLabel(finalCompDisplayName + " (" + finalCompIdName + ")");
+								currentGamepadMappings.put(actionBeingMapped, finalCompIdName); // Store the JInput component ID name
+								Mobile.log(Mobile.LOG_INFO, "AWTGUI: Mapped " + actionBeingMapped + " to " + finalCompDisplayName + " (ID: " + finalCompIdName + ")");
+							}
+						});
+						inputCaptured = true;
+						break; // Exit event loop
+					}
+				} // end while(queue.getNextEvent)
+
+				if (inputCaptured) {
+					break; // Exit polling loop
+				}
+
+				try {
+					Thread.sleep(50); // Poll moderately frequently
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					break;
+				}
+			} // end while(isCapturingInput && !timeout)
+
+			// Re-enable buttons on EDT
+			java.awt.EventQueue.invokeLater(() -> {
+				if (!inputCaptured && currentMappingButton != null) { // Timeout or cancelled
+					currentMappingButton.setLabel(currentGamepadMappings.getOrDefault(actionToMap, "Press to Map")); // Revert to previous or default
+					Mobile.log(Mobile.LOG_INFO, "AWTGUI: Input capture for " + actionToMap + " timed out or was cancelled.");
+				}
+				isCapturingInput = false; // Crucial to reset state
+				// currentMappingButton = null; // Don't nullify, it's needed if user clicks again
+				// actionToMap = null;
+
+				for (Button btn : gamepadMappingButtons.values()) {
+					if (selectedGamepadController != null) { // Only enable if a gamepad is still selected
+						btn.setEnabled(true);
+					} else {
+						btn.setLabel("N/A");
+						btn.setEnabled(false);
+					}
+				}
+				for (Button btn : inputButtons) {
+					btn.setEnabled(true); // Re-enable keyboard mapping buttons
+				}
+				// If no gamepad is selected after all this, ensure labels are N/A
+				if (selectedGamepadController == null) {
+				    loadGamepadMappingsForSelectedController(); // This will set labels to N/A and disable
+				}
+			});
+
+		}).start();
+	}
 }

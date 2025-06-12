@@ -21,8 +21,10 @@ import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.LockSupport;
 import java.io.DataInputStream;
@@ -46,12 +48,73 @@ import javax.microedition.lcdui.Image;
 
 import java.awt.image.BufferedImage;
 
+import net.java.games.input.Controller;
+import net.java.games.input.ControllerEnvironment;
+import net.java.games.input.Component;
+import net.java.games.input.Event;
+import net.java.games.input.EventQueue;
+import net.java.games.input.Component.Identifier;
+import net.java.games.input.Component.POV;
+
 /*
 	Mobile Platform
 */
 
 public class MobilePlatform
 {
+
+	// JInput specific members
+	private List<Controller> gamepads;
+	private volatile boolean gamepadPollingActive = false;
+	private Thread gamepadPollingThread;
+	// To store previous state of POV and axes for correct key release events
+	private Map<String, Float> previousPovValues; // Key: controllerName + componentId, Value: last POV value
+	private Map<String, Float> previousAxisValues; // Key: controllerName + componentId, Value: last axis value
+	private Map<Integer, Boolean> customMappedActionStates; // Key: j2meCanvasKeyCode, Value: isPressed
+
+
+	private static final Map<String, Integer> DEFAULT_BUTTON_MAP = new HashMap<>();
+	private static final Map<String, Integer> J2ME_ACTION_TO_KEYCODE_MAP = new HashMap<>();
+
+	static {
+		// Example mapping, component names ("0", "1", etc.) might vary by gamepad
+		DEFAULT_BUTTON_MAP.put("0", Canvas.FIRE); // Typically 'A' or 'X' (cross)
+		DEFAULT_BUTTON_MAP.put("1", Canvas.GAME_A); // Typically 'B' or 'O' (circle)
+		DEFAULT_BUTTON_MAP.put("2", Canvas.GAME_B); // Typically 'X' or 'Square'
+		DEFAULT_BUTTON_MAP.put("3", Canvas.GAME_C); // Typically 'Y' or 'Triangle'
+		DEFAULT_BUTTON_MAP.put("4", Canvas.KEY_SOFT_LEFT);  // L1 or LB
+		DEFAULT_BUTTON_MAP.put("5", Canvas.KEY_SOFT_RIGHT); // R1 or RB
+		DEFAULT_BUTTON_MAP.put("6", Canvas.KEY_STAR);    // Select or Back
+		DEFAULT_BUTTON_MAP.put("7", Canvas.KEY_POUND);   // Start
+		// Numerical keys for typical phone layouts, can be mapped to other gamepad buttons if desired
+		DEFAULT_BUTTON_MAP.put("8", Canvas.KEY_NUM1); // Example: L2/LT
+		DEFAULT_BUTTON_MAP.put("9", Canvas.KEY_NUM3); // Example: R2/RT
+
+		// Initialize J2ME_ACTION_TO_KEYCODE_MAP
+		J2ME_ACTION_TO_KEYCODE_MAP.put("UP", Canvas.UP);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("DOWN", Canvas.DOWN);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("LEFT", Canvas.LEFT);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("RIGHT", Canvas.RIGHT);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("FIRE", Canvas.FIRE);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("GAME_A", Canvas.GAME_A);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("GAME_B", Canvas.GAME_B);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("GAME_C", Canvas.GAME_C);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("GAME_D", Canvas.GAME_D);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_NUM0", Canvas.KEY_NUM0);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_NUM1", Canvas.KEY_NUM1);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_NUM2", Canvas.KEY_NUM2);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_NUM3", Canvas.KEY_NUM3);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_NUM4", Canvas.KEY_NUM4);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_NUM5", Canvas.KEY_NUM5);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_NUM6", Canvas.KEY_NUM6);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_NUM7", Canvas.KEY_NUM7);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_NUM8", Canvas.KEY_NUM8);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_NUM9", Canvas.KEY_NUM9);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_STAR", Canvas.KEY_STAR);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("KEY_POUND", Canvas.KEY_POUND);
+		J2ME_ACTION_TO_KEYCODE_MAP.put("SOFT_LEFT", Canvas.KEY_SOFT_LEFT); // Or map to KEY_SOFTKEY1 etc. if Canvas has them
+		J2ME_ACTION_TO_KEYCODE_MAP.put("SOFT_RIGHT", Canvas.KEY_SOFT_RIGHT); // Or map to KEY_SOFTKEY2 etc.
+	}
 
 	private static PlatformImage lcd;
 	private PlatformGraphics gc;
@@ -93,6 +156,9 @@ public class MobilePlatform
 	public MobilePlatform(int width, int height)
 	{
 		resizeLCD(width, height);
+		previousPovValues = new HashMap<>();
+		previousAxisValues = new HashMap<>();
+		customMappedActionStates = new HashMap<>();
 
 		painter = new Runnable()
 		{
@@ -102,6 +168,30 @@ public class MobilePlatform
 			}
 		};
 
+		initializeGamepadDetection();
+	}
+
+	private void initializeGamepadDetection() {
+		gamepads = new ArrayList<>();
+		try {
+			ControllerEnvironment ca = ControllerEnvironment.getDefaultEnvironment();
+			if (ca == null) {
+				Mobile.log(Mobile.LOG_WARNING, "MobilePlatform: JInput ControllerEnvironment is null. Gamepad support may be unavailable.");
+				return;
+			}
+			Controller[] controllers = ca.getControllers();
+			Mobile.log(Mobile.LOG_INFO, "MobilePlatform: Initializing JInput - Found " + controllers.length + " controllers total.");
+			for (Controller controller : controllers) {
+				Controller.Type type = controller.getType();
+				Mobile.log(Mobile.LOG_DEBUG, "JInput: Found controller: " + controller.getName() + ", Type: " + type.toString());
+				if (type == Controller.Type.STICK || type == Controller.Type.GAMEPAD) {
+					gamepads.add(controller);
+					Mobile.log(Mobile.LOG_INFO, "MobilePlatform: Added gamepad: " + controller.getName() + " (Type: " + type.toString() + ")");
+				}
+			}
+		} catch (Throwable e) {
+			Mobile.log(Mobile.LOG_ERROR, "MobilePlatform: Error initializing JInput or finding gamepads: " + e.getMessage());
+		}
 	}
 
 	public void resizeLCD(int width, int height)
@@ -618,12 +708,260 @@ public class MobilePlatform
 
 	public void runJar()
 	{
-		try { loader.start(); }
+		try {
+			loader.start();
+			startGamepadPolling(); // Start polling when JAR runs
+		}
 		catch (Exception e)
 		{
 			Mobile.log(Mobile.LOG_ERROR, MobilePlatform.class.getPackage().getName() + "." + MobilePlatform.class.getSimpleName() + ": " + "Error Running Jar");
 			e.printStackTrace();
 		}
+	}
+
+	public void startGamepadPolling() {
+		if (gamepads == null || gamepads.isEmpty()) {
+			Mobile.log(Mobile.LOG_INFO, "MobilePlatform: No gamepads detected, polling not started.");
+			return;
+		}
+		if (!gamepadPollingActive) {
+			gamepadPollingActive = true;
+			gamepadPollingThread = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					Mobile.log(Mobile.LOG_INFO, "MobilePlatform: Gamepad polling thread started.");
+					net.java.games.input.Event event = new net.java.games.input.Event();
+					while (gamepadPollingActive) {
+						for (Controller controller : gamepads) {
+							if (!controller.poll()) {
+								Mobile.log(Mobile.LOG_WARNING, "MobilePlatform: Failed to poll controller: " + controller.getName());
+								continue;
+							}
+
+							Map<String, String> customMappings = null;
+							if (Mobile.config != null) {
+								customMappings = Mobile.config.getGamepadMappings(controller.getName());
+							}
+							boolean useCustom = customMappings != null && !customMappings.isEmpty();
+							Mobile.log(Mobile.LOG_DEBUG, "Processing controller '" + controller.getName() + (useCustom ? "' with CUSTOM mappings." : "' with DEFAULT mappings."));
+
+							EventQueue queue = controller.getEventQueue();
+							while (queue.getNextEvent(event)) {
+								Component component = event.getComponent();
+								String componentIdString = component.getIdentifier().toString();
+								String componentIdName = component.getIdentifier().getName(); // For config matching (e.g. "0", "x")
+								String componentDisplayName = component.getName(); // Human-readable (e.g. "Button 0", "X Axis")
+								float value = event.getValue();
+								boolean eventProcessed = false;
+
+								Mobile.log(Mobile.LOG_DEBUG, String.format("JInput Event: Controller='%s', CompDisplayName='%s', CompIDStr='%s', CompIDName='%s', Value='%.3f'",
+									controller.getName(), componentDisplayName, componentIdString, componentIdName, value));
+
+								if (useCustom) {
+									for (Map.Entry<String, String> mappingEntry : customMappings.entrySet()) {
+										String j2meActionName = mappingEntry.getKey();
+										String mappedJInputComponentId = mappingEntry.getValue(); // This is usually componentIdName from AWTGUI like "0", "x", "pov"
+
+										// Prefer matching by componentIdName (which is what AWTGUI stores), but fallback to componentIdString if needed
+										boolean matched = componentIdName.equals(mappedJInputComponentId) || componentIdString.equals(mappedJInputComponentId);
+
+										if (matched) {
+											Mobile.log(Mobile.LOG_DEBUG, "Custom map: J2ME Action='" + j2meActionName + "' -> JInput Comp='" + mappedJInputComponentId + "'. Event from CompIDName='" + componentIdName + "'. Evaluating...");
+											int j2meCanvasKeyCode = mapJ2MEActionNameToKeyCode(j2meActionName);
+											if (j2meCanvasKeyCode == -1) {
+												Mobile.log(Mobile.LOG_WARNING, "Custom map: Unknown J2ME Action Name: " + j2meActionName);
+												continue;
+											}
+
+											boolean pressed = determinePressedState(component, value, j2meActionName, true);
+											// Use a more descriptive key for state tracking that includes the J2ME action,
+											// as one JInput component (like POV) can map to multiple J2ME actions (UP, DOWN etc.)
+											String stateChangeKey = controller.getName() + "_" + mappedJInputComponentId + "_ACTION_" + j2meActionName;
+
+											boolean previousPressedState = customMappedActionStates.getOrDefault(stateChangeKey.hashCode(), false);
+
+											if (previousPressedState != pressed) {
+												processGamepadAction(j2meCanvasKeyCode, pressed);
+												customMappedActionStates.put(stateChangeKey.hashCode(), pressed);
+												Mobile.log(Mobile.LOG_DEBUG, String.format("CustomMap Action: Controller='%s', J2MEAction='%s'(%d), JInputCompID='%s', Value='%.2f', PrevPressed=%b, NewPressed=%b -> PROCESSING",
+													controller.getName(), j2meActionName, j2meCanvasKeyCode, mappedJInputComponentId, value, previousPressedState, pressed));
+											}
+											eventProcessed = true;
+											break;
+										}
+									}
+								}
+
+								if (!eventProcessed) {
+									// Fallback to default handlers if not processed by custom mapping or no custom map for this controller
+									Identifier id = component.getIdentifier(); // JInput's full identifier object
+									String defaultHandlerKey = controller.getName() + "_" + componentIdName; // Using componentIdName for state tracking consistency
+
+									if (id == Identifier.Axis.POV) {
+										handleDefaultPovEvent(defaultHandlerKey, value, componentDisplayName);
+									} else if (id instanceof Identifier.Button && !component.isAnalog()) {
+										handleDefaultButtonEvent(componentIdName, value, componentDisplayName); // Pass componentIdName for map lookup
+									} else if (component.isAnalog() && (id == Identifier.Axis.X || id == Identifier.Axis.Y)) {
+										handleDefaultAxisEvent(defaultHandlerKey, id, value, componentDisplayName);
+									}
+								}
+							}
+						}
+						try {
+							Thread.sleep(20); // Poll at ~50Hz
+						} catch (InterruptedException e) {
+							Thread.currentThread().interrupt();
+							Mobile.log(Mobile.LOG_ERROR, "MobilePlatform: Gamepad polling thread interrupted.");
+							break;
+						}
+					}
+					Mobile.log(Mobile.LOG_INFO, "MobilePlatform: Gamepad polling thread stopped.");
+				}
+			});
+			gamepadPollingThread.setName("GamepadPollingThread");
+			gamepadPollingThread.setDaemon(true); // So it doesn't prevent JVM shutdown
+			gamepadPollingThread.start();
+		}
+	}
+
+	private int mapJ2MEActionNameToKeyCode(String j2meActionName) {
+		return J2ME_ACTION_TO_KEYCODE_MAP.getOrDefault(j2meActionName, -1);
+	}
+
+	private boolean determinePressedState(Component component, float value, String j2meActionName, boolean isCustomMapping) {
+		Identifier id = component.getIdentifier();
+		// For custom mappings, j2meActionName helps interpret POV/axis. For default, it's more direct.
+		if (id == Identifier.Axis.POV) {
+			if (j2meActionName.equals("UP")) return value == POV.UP || value == POV.UP_LEFT || value == POV.UP_RIGHT;
+			if (j2meActionName.equals("DOWN")) return value == POV.DOWN || value == POV.DOWN_LEFT || value == POV.DOWN_RIGHT;
+			if (j2meActionName.equals("LEFT")) return value == POV.LEFT || value == POV.UP_LEFT || value == POV.DOWN_LEFT;
+			if (j2meActionName.equals("RIGHT")) return value == POV.RIGHT || value == POV.UP_RIGHT || value == POV.DOWN_RIGHT;
+			// If j2meActionName is something generic like "POV_TRIGGER", any non-center might be true.
+			// For now, assume direct directional mapping from AWTGUI.
+			return false; // Not a recognized POV direction for the action
+		} else if (id instanceof Identifier.Button) {
+			return value == 1.0f;
+		} else if (component.isAnalog()) { // Analog axes
+			final float TRIGGER_THRESHOLD = 0.5f; // Could be configurable per-mapping too
+			if (j2meActionName.equals("UP")) return value < -TRIGGER_THRESHOLD;
+			if (j2meActionName.equals("DOWN")) return value > TRIGGER_THRESHOLD;
+			if (j2meActionName.equals("LEFT")) return value < -TRIGGER_THRESHOLD;
+			if (j2meActionName.equals("RIGHT")) return value > TRIGGER_THRESHOLD;
+			// Could also map full axis range to a button, e.g. gas pedal
+			// For now, assume axis-to-dpad style mapping from AWTGUI.
+		}
+		return false;
+	}
+
+
+	private void handleDefaultPovEvent(String povStateKey, float value, String componentDisplayName) {
+		float previousValue = previousPovValues.getOrDefault(povStateKey, 0.0f);
+		if (value == previousValue) return;
+
+		Mobile.log(Mobile.LOG_DEBUG, String.format("DefaultHandlePOV: Comp='%s', PrevValue=%.2f, NewValue=%.2f", componentDisplayName, previousValue, value));
+
+		// Release previous POV state
+		if (previousValue == POV.UP) processGamepadAction(Canvas.UP, false);
+		else if (previousValue == POV.DOWN) processGamepadAction(Canvas.DOWN, false);
+		else if (previousValue == POV.LEFT) processGamepadAction(Canvas.LEFT, false);
+		else if (previousValue == POV.RIGHT) processGamepadAction(Canvas.RIGHT, false);
+		else if (previousValue == POV.UP_LEFT) { processGamepadAction(Canvas.UP, false); processGamepadAction(Canvas.LEFT, false); }
+		else if (previousValue == POV.UP_RIGHT) { processGamepadAction(Canvas.UP, false); processGamepadAction(Canvas.RIGHT, false); }
+		else if (previousValue == POV.DOWN_LEFT) { processGamepadAction(Canvas.DOWN, false); processGamepadAction(Canvas.LEFT, false); }
+		else if (previousValue == POV.DOWN_RIGHT) { processGamepadAction(Canvas.DOWN, false); processGamepadAction(Canvas.RIGHT, false); }
+
+		// Press new POV state
+		if (value == POV.UP) processGamepadAction(Canvas.UP, true);
+		else if (value == POV.DOWN) processGamepadAction(Canvas.DOWN, true);
+		else if (value == POV.LEFT) processGamepadAction(Canvas.LEFT, true);
+		else if (value == POV.RIGHT) processGamepadAction(Canvas.RIGHT, true);
+		else if (value == POV.UP_LEFT) { processGamepadAction(Canvas.UP, true); processGamepadAction(Canvas.LEFT, true); }
+		else if (value == POV.UP_RIGHT) { processGamepadAction(Canvas.UP, true); processGamepadAction(Canvas.RIGHT, true); }
+		else if (value == POV.DOWN_LEFT) { processGamepadAction(Canvas.DOWN, true); processGamepadAction(Canvas.LEFT, true); }
+		else if (value == POV.DOWN_RIGHT) { processGamepadAction(Canvas.DOWN, true); processGamepadAction(Canvas.RIGHT, true); }
+
+		previousPovValues.put(povStateKey, value);
+	}
+
+	private void handleDefaultButtonEvent(String buttonIdName, float value, String componentDisplayName) {
+		Integer j2meAction = DEFAULT_BUTTON_MAP.get(buttonIdName); // buttonIdName is like "0", "1"
+		if (j2meAction != null) {
+			boolean pressed = (value == 1.0f);
+			// For default buttons, state change is implicit with the event (JInput usually sends one event per press/release)
+			processGamepadAction(j2meAction, pressed);
+			Mobile.log(Mobile.LOG_DEBUG, String.format("DefaultHandleButton: Comp='%s' (ID='%s'), Value=%.1f. Mapped to J2ME Action=%d (%s)",
+					componentDisplayName, buttonIdName, value, j2meAction, (pressed ? "Pressed" : "Released")));
+		} else {
+			Mobile.log(Mobile.LOG_DEBUG, String.format("DefaultHandleButton: Comp='%s' (ID='%s'), Value=%.1f. No default mapping.",
+					componentDisplayName, buttonIdName, value));
+		}
+	}
+
+	private void handleDefaultAxisEvent(String axisStateKey, Identifier id, float value, String componentDisplayName) {
+		final float DEAD_ZONE = 0.25f;
+		final float TRIGGER_THRESHOLD = 0.5f;
+
+		float previousValue = previousAxisValues.getOrDefault(axisStateKey, 0.0f);
+		Mobile.log(Mobile.LOG_DEBUG, String.format("DefaultHandleAxis: Comp='%s', PrevVal=%.2f, CurrVal=%.2f", componentDisplayName, previousValue, value));
+
+		// X-Axis handling
+		if (id == Identifier.Axis.X) {
+			boolean currentLeft = value < -TRIGGER_THRESHOLD;
+			boolean prevLeftState = previousAxisValues.getOrDefault(axisStateKey + "_LEFT", 0.0f) == 1.0f;
+			if (currentLeft && !prevLeftState) { processGamepadAction(Canvas.LEFT, true); previousAxisValues.put(axisStateKey + "_LEFT", 1.0f); }
+			else if (!currentLeft && prevLeftState && value >= -DEAD_ZONE) { processGamepadAction(Canvas.LEFT, false); previousAxisValues.put(axisStateKey + "_LEFT", 0.0f); }
+
+			boolean currentRight = value > TRIGGER_THRESHOLD;
+			boolean prevRightState = previousAxisValues.getOrDefault(axisStateKey + "_RIGHT", 0.0f) == 1.0f;
+			if (currentRight && !prevRightState) { processGamepadAction(Canvas.RIGHT, true); previousAxisValues.put(axisStateKey + "_RIGHT", 1.0f); }
+			else if (!currentRight && prevRightState && value <= DEAD_ZONE) { processGamepadAction(Canvas.RIGHT, false); previousAxisValues.put(axisStateKey + "_RIGHT", 0.0f); }
+		}
+		// Y-Axis handling
+		else if (id == Identifier.Axis.Y) {
+			boolean currentUp = value < -TRIGGER_THRESHOLD;
+			boolean prevUpState = previousAxisValues.getOrDefault(axisStateKey + "_UP", 0.0f) == 1.0f;
+			if (currentUp && !prevUpState) { processGamepadAction(Canvas.UP, true); previousAxisValues.put(axisStateKey + "_UP", 1.0f); }
+			else if (!currentUp && prevUpState && value >= -DEAD_ZONE) { processGamepadAction(Canvas.UP, false); previousAxisValues.put(axisStateKey + "_UP", 0.0f); }
+
+			boolean currentDown = value > TRIGGER_THRESHOLD;
+			boolean prevDownState = previousAxisValues.getOrDefault(axisStateKey + "_DOWN", 0.0f) == 1.0f;
+			if (currentDown && !prevDownState) { processGamepadAction(Canvas.DOWN, true); previousAxisValues.put(axisStateKey + "_DOWN", 1.0f); }
+			else if (!currentDown && prevDownState && value <= DEAD_ZONE) { processGamepadAction(Canvas.DOWN, false); previousAxisValues.put(axisStateKey + "_DOWN", 0.0f); }
+		}
+		previousAxisValues.put(axisStateKey, value); // Store current raw axis value for next event comparison
+	}
+
+	private static void processGamepadAction(int j2meGameAction, boolean pressed) {
+		if (j2meGameAction == -1) return;
+
+		Mobile.log(Mobile.LOG_DEBUG, String.format("processGamepadAction: J2ME ActionCode=%d, Pressed=%b", j2meGameAction, pressed));
+		updateKeyState(j2meGameAction, pressed ? 1 : 0);
+		updateVodafoneKeyState(j2meGameAction, pressed ? 1 : 0);
+		updateDoJaKeyState(j2meGameAction, pressed ? 1 : 0);
+		Mobile.log(Mobile.LOG_DEBUG, "processGamepadAction: New keyState = " + Integer.toBinaryString(keyState) +
+                                 ", vodafoneKeyState = " + Integer.toBinaryString(vodafoneKeyState) +
+                                 ", DoJaKeyState = " + Integer.toBinaryString(DoJaKeyState));
+		// TODO: Consider if direct calls to displayable.keyPressed/keyReleased are needed
+		// for full compatibility, or if keyState is sufficient.
+		// This might require queuing events to the main AWT thread.
+		// For now, GameCanvas.getKeyStates() will reflect these changes.
+	}
+
+	public void stopGamepadPolling() {
+		gamepadPollingActive = false;
+		if (gamepadPollingThread != null) {
+			try {
+				gamepadPollingThread.join(100); // Wait a bit for the thread to finish
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				Mobile.log(Mobile.LOG_ERROR, "MobilePlatform: Interrupted while stopping gamepad polling thread.");
+			}
+			gamepadPollingThread = null;
+		}
+		Mobile.log(Mobile.LOG_INFO, "MobilePlatform: Gamepad polling requested to stop.");
+		previousPovValues.clear();
+		previousAxisValues.clear();
+		customMappedActionStates.clear();
 	}
 
 /*
@@ -725,6 +1063,7 @@ public class MobilePlatform
 	public void setShowFPS(String show) { showFPS = show; }
 
 	public void stopApp() {
+		stopGamepadPolling(); // Stop polling when app stops
 		try {
 			if (loader != null && Mobile.midlet != null) {
 				Mobile.log(Mobile.LOG_INFO, "MobilePlatform: Destroying MIDlet...");
@@ -750,8 +1089,9 @@ public class MobilePlatform
 	public void reset()
 	{
 		Mobile.log(Mobile.LOG_INFO, "MobilePlatform: Resetting platform...");
+		stopGamepadPolling(); // Stop polling on reset as well
 		try {
-			stopApp();
+			stopApp(); // stopApp already calls stopGamepadPolling, but good to be sure
 			// Clear graphics buffer
 			if (lcd != null) {
 				Graphics2D g2d = lcd.getCanvas().createGraphics();
@@ -771,4 +1111,7 @@ public class MobilePlatform
 	public boolean isJarLoaded() {
 	return loader != null; }
 
+	public List<Controller> getDetectedGamepads() {
+		return gamepads;
+	}
 }

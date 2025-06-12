@@ -31,3 +31,12 @@ subprojects {
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
 }
+
+project(':emu-core') {
+    dependencies {
+        implementation 'net.java.jinput:jinput:2.0.9'
+        implementation 'net.java.jinput:jinput-platform:2.0.9:natives-windows'
+        implementation 'net.java.jinput:jinput-platform:2.0.9:natives-linux'
+        implementation 'net.java.jinput:jinput-platform:2.0.9:natives-osx'
+    }
+}

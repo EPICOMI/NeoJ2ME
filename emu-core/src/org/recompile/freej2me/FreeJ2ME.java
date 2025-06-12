@@ -723,6 +723,10 @@ import java.io.IOException;
 
 import javax.imageio.ImageIO;
 
+import net.java.games.input.Controller;
+import net.java.games.input.ControllerEnvironment;
+import net.java.games.input.Controller.Type;
+
 public class FreeJ2ME
 {
 	public static FreeJ2ME app;
@@ -756,6 +760,31 @@ public class FreeJ2ME
 	{
 		app = this;
 		try {
+			// Initialize JInput
+			Mobile.log(Mobile.LOG_INFO, "FreeJ2ME: Initializing JInput...");
+			try {
+				ControllerEnvironment ca = ControllerEnvironment.getDefaultEnvironment();
+				Controller[] controllers = ca.getControllers();
+				if (controllers.length == 0) {
+					Mobile.log(Mobile.LOG_INFO, "JInput: No controllers found.");
+				} else {
+					Mobile.log(Mobile.LOG_INFO, "JInput: Available controllers:");
+					for (Controller controller : controllers) {
+						Mobile.log(Mobile.LOG_INFO, "JInput: Found controller: " + controller.getName() + " - Type: " + controller.getType());
+						// Example: Check for specific types
+						if (controller.getType() == Type.STICK ||
+							controller.getType() == Type.GAMEPAD ||
+							controller.getType() == Type.WHEEL) {
+							Mobile.log(Mobile.LOG_INFO, "JInput: " + controller.getName() + " is a joystick, gamepad, or wheel.");
+							// Further initialization for this controller can be added here
+						}
+					}
+				}
+			} catch (Throwable e) { // Catch Throwable to handle UnsatisfiedLinkError if natives are missing
+				Mobile.log(Mobile.LOG_ERROR, "JInput: Failed to initialize or enumerate controllers: " + e.getMessage());
+				e.printStackTrace(); // Print stack trace for debugging
+			}
+
 			if (args.length >= 3) {
 				Mobile.lcdWidth = Integer.parseInt(args[1]);
 				Mobile.lcdHeight = Integer.parseInt(args[2]);
@@ -780,7 +809,12 @@ public class FreeJ2ME
 				}
 			};
 
-			awtGUI = new AWTGUI(Mobile.config);
+			// Pass the detected gamepads to AWTGUI
+			List<Controller> detectedGamepads = new ArrayList<>();
+			if (platform != null) {
+				detectedGamepads = platform.getDetectedGamepads();
+			}
+			awtGUI = new AWTGUI(Mobile.config, detectedGamepads);
 
 			constructFreeJ2MEGUI();
 
