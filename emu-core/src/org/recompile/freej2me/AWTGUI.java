@@ -47,15 +47,22 @@ import java.io.FilenameFilter;
 import java.util.Arrays;
 import java.util.ArrayList;
 
-import org.libsdl.SDL;
-import org.libsdl.SDL_Joystick;
+// import org.libsdl.SDL; // Old import
+// import org.libsdl.SDL_Joystick; // Old import
+import io.github.libsdl4j.api.Sdl;
+import io.github.libsdl4j.api.joystick.SdlJoystick; // Class with static methods
+import io.github.libsdl4j.api.joystick.SDL_Joystick; // JNA PointerType handle
+import io.github.libsdl4j.api.SdlSubSystemConst; // For SDL_INIT_JOYSTICK
+import io.github.libsdl4j.api.joystick.SdlJoystickConst; // For HAT states and other joystick constants
+import io.github.libsdl4j.api.error.SdlError; // For GetError
+
 import org.recompile.mobile.Mobile;
 import org.recompile.mobile.MobilePlatform;
 
 public final class AWTGUI 
 {
 	final String VERSION = "1.45";
-	private ArrayList<SDL_Joystick> joysticks = new ArrayList<SDL_Joystick>();
+	private ArrayList<SDL_Joystick> joysticks = new ArrayList<SDL_Joystick>(); // Use the handle type
 	/* This is used to indicate to FreeJ2ME that it has to call "settingsChanged()" to apply changes made here */
 	private boolean hasPendingChange;
 
@@ -318,21 +325,21 @@ public final class AWTGUI
         }
 
 		// Initialize SDL joystick subsystem
-		if (SDL.SDL_InitSubSystem(SDL.SDL_INIT_JOYSTICK) < 0) {
-			Mobile.log(Mobile.LOG_ERROR, "Failed to initialize SDL joystick subsystem: " + SDL.SDL_GetError());
+		if (Sdl.SDL_InitSubSystem(SdlSubSystemConst.SDL_INIT_JOYSTICK) < 0) {
+			Mobile.log(Mobile.LOG_ERROR, "Failed to initialize SDL joystick subsystem: " + SdlError.SDL_GetError()); // Use SdlError class
 		} else {
-			int numJoysticks = SDL.SDL_NumJoysticks();
+			int numJoysticks = SdlJoystick.SDL_NumJoysticks();
 			Mobile.log(Mobile.LOG_INFO, "Number of joysticks detected: " + numJoysticks);
 			for (int i = 0; i < numJoysticks; i++) {
-				SDL_Joystick joystick = SDL.SDL_JoystickOpen(i);
+				SDL_Joystick joystick = SdlJoystick.SDL_JoystickOpen(i); // Returns SDL_Joystick handle
 				if (joystick != null) {
 					joysticks.add(joystick);
-					Mobile.log(Mobile.LOG_INFO, "Opened joystick " + i + ": " + SDL.SDL_JoystickName(joystick));
-					Mobile.log(Mobile.LOG_INFO, "  Axes: " + SDL.SDL_JoystickNumAxes(joystick));
-					Mobile.log(Mobile.LOG_INFO, "  Buttons: " + SDL.SDL_JoystickNumButtons(joystick));
-					Mobile.log(Mobile.LOG_INFO, "  Hats: " + SDL.SDL_JoystickNumHats(joystick));
+					Mobile.log(Mobile.LOG_INFO, "Opened joystick " + i + ": " + SdlJoystick.SDL_JoystickName(joystick));
+					Mobile.log(Mobile.LOG_INFO, "  Axes: " + SdlJoystick.SDL_JoystickNumAxes(joystick));
+					Mobile.log(Mobile.LOG_INFO, "  Buttons: " + SdlJoystick.SDL_JoystickNumButtons(joystick));
+					Mobile.log(Mobile.LOG_INFO, "  Hats: " + SdlJoystick.SDL_JoystickNumHats(joystick));
 				} else {
-					Mobile.log(Mobile.LOG_ERROR, "Failed to open joystick " + i + ": " + SDL.SDL_GetError());
+					Mobile.log(Mobile.LOG_ERROR, "Failed to open joystick " + i + ": " + SdlError.SDL_GetError()); // Use SdlError class
 				}
 			}
 		}
@@ -585,28 +592,28 @@ public final class AWTGUI
 							String detectedBinding = "";
 
 							while (!stopGamepadPolling && (System.currentTimeMillis() - startTime) < 5000) { // 5-second timeout
-								SDL.SDL_JoystickUpdate();
+								SdlJoystick.SDL_JoystickUpdate();
 								if (joysticks.isEmpty()) {
 									break;
 								}
-								SDL_Joystick joystick = joysticks.get(0); // Use the first joystick
+								SDL_Joystick joystick = joysticks.get(0); // Use the handle type
 
 								// Check Hats (D-Pad)
-								for (int hatIdx = 0; hatIdx < SDL.SDL_JoystickNumHats(joystick); hatIdx++) {
-									byte hatState = SDL.SDL_JoystickGetHat(joystick, hatIdx);
-									if (hatState != SDL.SDL_HAT_CENTERED) {
-										if ((hatState & SDL.SDL_HAT_UP) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_UP";
-										else if ((hatState & SDL.SDL_HAT_DOWN) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_DOWN";
-										else if ((hatState & SDL.SDL_HAT_LEFT) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_LEFT";
-										else if ((hatState & SDL.SDL_HAT_RIGHT) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_RIGHT";
+								for (int hatIdx = 0; hatIdx < SdlJoystick.SDL_JoystickNumHats(joystick); hatIdx++) {
+									byte hatState = SdlJoystick.SDL_JoystickGetHat(joystick, hatIdx);
+									if (hatState != SdlJoystickConst.SDL_HAT_CENTERED) {
+										if ((hatState & SdlJoystickConst.SDL_HAT_UP) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_UP";
+										else if ((hatState & SdlJoystickConst.SDL_HAT_DOWN) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_DOWN";
+										else if ((hatState & SdlJoystickConst.SDL_HAT_LEFT) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_LEFT";
+										else if ((hatState & SdlJoystickConst.SDL_HAT_RIGHT) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_RIGHT";
 										stopGamepadPolling = true; break;
 									}
 								}
 								if (stopGamepadPolling) break;
 
 								// Check Buttons
-								for (int btnIdx = 0; btnIdx < SDL.SDL_JoystickNumButtons(joystick); btnIdx++) {
-									if (SDL.SDL_JoystickGetButton(joystick, btnIdx) == 1) {
+								for (int btnIdx = 0; btnIdx < SdlJoystick.SDL_JoystickNumButtons(joystick); btnIdx++) {
+									if (SdlJoystick.SDL_JoystickGetButton(joystick, btnIdx) == 1) {
 										detectedBinding = "GP0_BUTTON_" + btnIdx;
 										stopGamepadPolling = true; break;
 									}
@@ -614,13 +621,12 @@ public final class AWTGUI
 								if (stopGamepadPolling) break;
 
 								// Check Axes
-								final short AXIS_DEADZONE = 8000; // SDL axes range from -32768 to 32767
-								for (int axisIdx = 0; axisIdx < SDL.SDL_JoystickNumAxes(joystick); axisIdx++) {
-									short axisValue = SDL.SDL_JoystickGetAxis(joystick, axisIdx);
-									if (axisValue > AXIS_DEADZONE) {
+								for (int axisIdx = 0; axisIdx < SdlJoystick.SDL_JoystickNumAxes(joystick); axisIdx++) {
+									short axisValue = SdlJoystick.SDL_JoystickGetAxis(joystick, axisIdx);
+									if (axisValue > AXIS_DEADZONE_THRESHOLD) {
 										detectedBinding = "GP0_AXIS_" + axisIdx + "_POS";
 										stopGamepadPolling = true; break;
-									} else if (axisValue < -AXIS_DEADZONE) {
+									} else if (axisValue < -AXIS_DEADZONE_THRESHOLD) {
 										detectedBinding = "GP0_AXIS_" + axisIdx + "_NEG";
 										stopGamepadPolling = true; break;
 									}
@@ -1244,11 +1250,11 @@ public final class AWTGUI
 	public boolean hasJustLoaded() { return firstLoad; }
 
 	public void cleanupJoysticks() {
-		for (SDL_Joystick joystick : joysticks) {
-			SDL.SDL_JoystickClose(joystick);
+		for (SDL_Joystick joystick : joysticks) { // Use the handle type
+			SdlJoystick.SDL_JoystickClose(joystick);
 		}
 		joysticks.clear();
-		SDL.SDL_QuitSubSystem(SDL.SDL_INIT_JOYSTICK);
+		Sdl.SDL_QuitSubSystem(SdlSubSystemConst.SDL_INIT_JOYSTICK); // Keep SDL_ prefix for Sdl methods too
 		Mobile.log(Mobile.LOG_INFO, "SDL joystick subsystem cleaned up.");
 	}
 
@@ -1269,8 +1275,8 @@ public final class AWTGUI
 			return;
 		}
 
-		SDL.SDL_JoystickUpdate();
-		SDL_Joystick joystick = joysticks.get(0); // Assuming first joystick
+		SdlJoystick.SDL_JoystickUpdate();
+		SDL_Joystick joystick = joysticks.get(0); // Use the handle type
 
 		if (joystick == null) {
 			// This can happen if SDL_JoystickOpen failed or joystick was disconnected
@@ -1307,21 +1313,21 @@ public final class AWTGUI
 			int index = Integer.parseInt(parts[2]);
 
 			if ("BUTTON".equals(type)) {
-				if (SDL.SDL_JoystickNumButtons(joystick) > index) {
-					currentState = (SDL.SDL_JoystickGetButton(joystick, index) == 1);
+				if (SdlJoystick.SDL_JoystickNumButtons(joystick) > index) {
+					currentState = (SdlJoystick.SDL_JoystickGetButton(joystick, index) == 1);
 				}
 			} else if ("HAT".equals(type)) {
-				if (SDL.SDL_JoystickNumHats(joystick) > index) {
-					byte hatState = SDL.SDL_JoystickGetHat(joystick, index);
+				if (SdlJoystick.SDL_JoystickNumHats(joystick) > index) {
+					byte hatState = SdlJoystick.SDL_JoystickGetHat(joystick, index);
 					String direction = parts[3]; // UP, DOWN, LEFT, RIGHT
-					if ("UP".equals(direction)) currentState = (hatState & SDL.SDL_HAT_UP) != 0;
-					else if ("DOWN".equals(direction)) currentState = (hatState & SDL.SDL_HAT_DOWN) != 0;
-					else if ("LEFT".equals(direction)) currentState = (hatState & SDL.SDL_HAT_LEFT) != 0;
-					else if ("RIGHT".equals(direction)) currentState = (hatState & SDL.SDL_HAT_RIGHT) != 0;
+					if ("UP".equals(direction)) currentState = (hatState & SdlJoystickConst.SDL_HAT_UP) != 0;
+					else if ("DOWN".equals(direction)) currentState = (hatState & SdlJoystickConst.SDL_HAT_DOWN) != 0;
+					else if ("LEFT".equals(direction)) currentState = (hatState & SdlJoystickConst.SDL_HAT_LEFT) != 0;
+					else if ("RIGHT".equals(direction)) currentState = (hatState & SdlJoystickConst.SDL_HAT_RIGHT) != 0;
 				}
 			} else if ("AXIS".equals(type)) {
-				if (SDL.SDL_JoystickNumAxes(joystick) > index) {
-					short axisValue = SDL.SDL_JoystickGetAxis(joystick, index);
+				if (SdlJoystick.SDL_JoystickNumAxes(joystick) > index) {
+					short axisValue = SdlJoystick.SDL_JoystickGetAxis(joystick, index);
 					String direction = parts[3]; // POS, NEG
 					if ("POS".equals(direction)) currentState = axisValue > AXIS_DEADZONE_THRESHOLD;
 					else if ("NEG".equals(direction)) currentState = axisValue < -AXIS_DEADZONE_THRESHOLD;
@@ -1331,12 +1337,30 @@ public final class AWTGUI
 			boolean prevState = previousGamepadInputStates.getOrDefault(gamepadBindingString, false);
 
 			if (currentState != prevState) {
-				Integer keyboardKeyCode = actionToKeyboardKeyCodeMap.get("input_" + actionKeyBase);
-				if (keyboardKeyCode != null) {
-					int eventType = currentState ? KeyEvent.KEY_PRESSED : KeyEvent.KEY_RELEASED;
-					KeyEvent emulatedKeyEvent = new KeyEvent(eventSource, eventType, System.currentTimeMillis(), 0, keyboardKeyCode, KeyEvent.CHAR_UNDEFINED);
-					Mobile.getPlatform().handleKeyEvent(emulatedKeyEvent);
-					//Mobile.log(Mobile.LOG_DEBUG, "Gamepad: " + gamepadBindingString + (currentState ? " Pressed" : " Released") + " -> Key " + keyboardKeyCode);
+				Integer awtVkKeyCode = actionToKeyboardKeyCodeMap.get("input_" + actionKeyBase);
+				if (awtVkKeyCode != null) {
+					int actionIndex = -1;
+					for (int i = 0; i < AWTGUI.this.inputKeycodes.length; i++) {
+						if (AWTGUI.this.inputKeycodes[i] == awtVkKeyCode) {
+							actionIndex = i;
+							break;
+						}
+					}
+
+					if (actionIndex != -1) {
+						// Mobile.convertAWTKeycode expects an index that corresponds to its internal awtguiKeycodes mapping.
+						// This index IS the actionIndex from AWTGUI's perspective (0=LeftSoft, 1=RightSoft, etc.)
+						int canvasKeycode = Mobile.convertAWTKeycode(actionIndex);
+
+						if (canvasKeycode != 0 && canvasKeycode != Integer.MIN_VALUE) { // Check if valid Canvas keycode
+							if (currentState) { // Pressed
+								Mobile.getPlatform().keyPressed(canvasKeycode);
+							} else { // Released
+								Mobile.getPlatform().keyReleased(canvasKeycode);
+							}
+							//Mobile.log(Mobile.LOG_DEBUG, "Gamepad: " + gamepadBindingString + (currentState ? " Pressed" : " Released") + " -> AWT VK " + awtVkKeyCode + " -> ActionIndex " + actionIndex + " -> CanvasKey " + canvasKeycode);
+						}
+					}
 				}
 				previousGamepadInputStates.put(gamepadBindingString, currentState);
 			}
