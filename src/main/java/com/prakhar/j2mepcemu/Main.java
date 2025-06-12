@@ -39,39 +39,39 @@ public class Main {
         System.setProperty("jna.debug_load", "true");
         System.setProperty("jna.debug_load.jna", "true"); // More verbose JNA loading
 
-        String projectRoot = System.getProperty("user.dir");
-        // Path to the resources directory within the emu-core module source
-        // JNA expects the com/sun/jna/platform structure *within* this path.
-        String nativeSourceResourcePath = projectRoot + java.io.File.separator + "emu-core" + java.io.File.separator + "src" + java.io.File.separator + "main" + java.io.File.separator + "resources";
+        // String projectRoot = System.getProperty("user.dir");
+        // // Path to the resources directory within the emu-core module source
+        // // JNA expects the com/sun/jna/platform structure *within* this path.
+        // String nativeSourceResourcePath = projectRoot + java.io.File.separator + "emu-core" + java.io.File.separator + "src" + java.io.File.separator + "main" + java.io.File.separator + "resources";
 
-        // Path to where Gradle/IDE might place resources during build/run from IDE
-        String nativeBuildResourcePath = projectRoot + java.io.File.separator + "emu-core" + java.io.File.separator + "build" + java.io.File.separator + "resources" + java.io.File.separator + "main";
+        // // Path to where Gradle/IDE might place resources during build/run from IDE
+        // String nativeBuildResourcePath = projectRoot + java.io.File.separator + "emu-core" + java.io.File.separator + "build" + java.io.File.separator + "resources" + java.io.File.separator + "main";
 
-        java.io.File nativeBuildResourceDir = new java.io.File(nativeBuildResourcePath);
-        java.io.File nativeSourceResourceDir = new java.io.File(nativeSourceResourcePath);
+        // java.io.File nativeBuildResourceDir = new java.io.File(nativeBuildResourcePath);
+        // java.io.File nativeSourceResourceDir = new java.io.File(nativeSourceResourcePath);
 
-        String effectiveNativePath = "";
+        // String effectiveNativePath = "";
 
-        if (nativeBuildResourceDir.exists() && nativeBuildResourceDir.isDirectory()) {
-            effectiveNativePath = nativeBuildResourceDir.getAbsolutePath();
-            System.out.println("JNA Debug: Using build resource path: " + effectiveNativePath);
-        } else if (nativeSourceResourceDir.exists() && nativeSourceResourceDir.isDirectory()) {
-            effectiveNativePath = nativeSourceResourceDir.getAbsolutePath();
-            System.out.println("JNA Debug: Using source resource path: " + effectiveNativePath);
-        } else {
-            // Fallback or log error if neither path is found, though one should exist.
-            // For now, JNA will rely on classpath search if this is empty or invalid.
-            System.err.println("JNA Debug: Neither build nor source resource path found for jna.library.path. User dir: " + projectRoot);
-            System.err.println("JNA Debug: Checked build path: " + nativeBuildResourcePath + " (exists: " + nativeBuildResourceDir.exists() + ")");
-            System.err.println("JNA Debug: Checked source path: " + nativeSourceResourcePath + " (exists: " + nativeSourceResourceDir.exists() + ")");
-        }
+        // if (nativeBuildResourceDir.exists() && nativeBuildResourceDir.isDirectory()) {
+        //     effectiveNativePath = nativeBuildResourceDir.getAbsolutePath();
+        //     System.out.println("JNA Debug: Using build resource path: " + effectiveNativePath);
+        // } else if (nativeSourceResourceDir.exists() && nativeSourceResourceDir.isDirectory()) {
+        //     effectiveNativePath = nativeSourceResourceDir.getAbsolutePath();
+        //     System.out.println("JNA Debug: Using source resource path: " + effectiveNativePath);
+        // } else {
+        //     // Fallback or log error if neither path is found, though one should exist.
+        //     // For now, JNA will rely on classpath search if this is empty or invalid.
+        //     System.err.println("JNA Debug: Neither build nor source resource path found for jna.library.path. User dir: " + projectRoot);
+        //     System.err.println("JNA Debug: Checked build path: " + nativeBuildResourcePath + " (exists: " + nativeBuildResourceDir.exists() + ")");
+        //     System.err.println("JNA Debug: Checked source path: " + nativeSourceResourcePath + " (exists: " + nativeSourceResourceDir.exists() + ")");
+        // }
 
-        if (!effectiveNativePath.isEmpty()) {
-            System.out.println("JNA Debug: Setting jna.library.path to: " + effectiveNativePath);
-            System.setProperty("jna.library.path", effectiveNativePath);
-        } else {
-            System.out.println("JNA Debug: jna.library.path not set as no effective path was determined.");
-        }
+        // if (!effectiveNativePath.isEmpty()) {
+        //     System.out.println("JNA Debug: Setting jna.library.path to: " + effectiveNativePath);
+        //     System.setProperty("jna.library.path", effectiveNativePath);
+        // } else {
+        //     System.out.println("JNA Debug: jna.library.path not set as no effective path was determined.");
+        // }
 
         SwingUtilities.invokeLater(() -> createAndShowGUI());
     }
