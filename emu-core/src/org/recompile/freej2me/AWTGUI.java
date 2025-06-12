@@ -1300,8 +1300,14 @@ public final class AWTGUI
         System.out.println("DEBUG_GP_ENTRY: processGamepadInput PASSED INITIAL CHECKS. Joystick name: " + io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickName(joystick));
 
 		// Update joystick states
-		io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickUpdate(); // Corrected to SdlJoystick class
+		io.github.libsdl4j.api.Sdl.SDL_JoystickUpdate(); // Corrected to Sdl class as per subtask
 		// System.out.println("DEBUG_GP: SDL_JoystickUpdate() called."); // Optional: spammy
+
+        if (actionKeys == null || actionKeys.length == 0) {
+            System.err.println("DEBUG_GP: actionKeys array is null or empty! Cannot process specific input bindings.");
+            return;
+        }
+        System.out.println("DEBUG_GP: Processing " + actionKeys.length + " actionKeys. First actionKey: " + (actionKeys.length > 0 ? actionKeys[0] : "N/A"));
 
 		for (String actionKeyBase : actionKeys) { // actionKeys should be {"LeftSoft", "RightSoft", ...}
 			String actionGamepadConfigKey = "input_" + actionKeyBase + "_Gamepad";
