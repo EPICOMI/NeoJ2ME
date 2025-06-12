@@ -1271,98 +1271,130 @@ public final class AWTGUI
 	}
 
 	public void processGamepadInput(Component eventSource) {
-		if (joysticks.isEmpty() || config == null) {
+		// System.out.println("DEBUG_GP: processGamepadInput called."); // Optional: can be too spammy
+
+		if (joysticks == null || joysticks.isEmpty()) {
+			// System.out.println("DEBUG_GP: No joysticks available or list is null."); // Optional
 			return;
 		}
-
-		SdlJoystick.SDL_JoystickUpdate();
-		SDL_Joystick joystick = joysticks.get(0); // Use the handle type
-
-		if (joystick == null) {
-			// This can happen if SDL_JoystickOpen failed or joystick was disconnected
-			// and joysticks list wasn't updated yet.
-			if (!joysticks.isEmpty() && joysticks.get(0) == null) {
-				// Attempt to reopen or clean up, for now, just log and skip.
-				// Mobile.log(Mobile.LOG_WARN, "AWTGUI: First joystick is null, attempting to re-evaluate.");
-				// Consider a mechanism to re-initialize joysticks here or handle disconnection.
+		if (config == null || config.sysSettings == null) {
+			System.err.println("DEBUG_GP: Config or sysSettings is null.");
+			return;
+		}
+		if (actionToKeyboardKeyCodeMap == null || actionToKeyboardKeyCodeMap.isEmpty()) {
+			// System.err.println("DEBUG_GP: actionToKeyboardKeyCodeMap is not initialized. Initializing now."); // Already has defensive init
+			initActionToKeyboardKeyCodeMap(); // Ensure it's initialized
+			if (actionToKeyboardKeyCodeMap.isEmpty()){ // Still empty after init
+				 System.err.println("DEBUG_GP: actionToKeyboardKeyCodeMap is STILL EMPTY after re-init. Cannot process input.");
+				 return;
 			}
+		}
+
+		// Assuming we are using the first joystick
+		SDL_Joystick joystick = joysticks.get(0);
+		if (joystick == null) {
+			System.err.println("DEBUG_GP: Joystick object at index 0 is null.");
 			return;
 		}
 
-		// Ensure map is initialized if it's empty (e.g. if config reloaded)
-		if (actionToKeyboardKeyCodeMap.isEmpty()) {
-		    initActionToKeyboardKeyCodeMap();
-		    if (actionToKeyboardKeyCodeMap.isEmpty()) return; // Still couldn't initialize
-		}
+		// Update joystick states
+		SdlJoystick.SDL_JoystickUpdate();
+		// System.out.println("DEBUG_GP: SDL_JoystickUpdate() called."); // Optional: spammy
 
-		for (String actionKeyBase : actionKeys) { // e.g., "LeftSoft", "ArrowUp"
-			String gamepadBindingConfigKey = "input_" + actionKeyBase + "_Gamepad"; // e.g., "input_LeftSoft_Gamepad"
-			String gamepadBindingString = config.sysSettings.get(gamepadBindingConfigKey);
+		for (String actionKeyBase : actionKeys) { // actionKeys should be {"LeftSoft", "RightSoft", ...}
+			String actionGamepadConfigKey = "input_" + actionKeyBase + "_Gamepad";
+			String gamepadBindingString = config.sysSettings.get(actionGamepadConfigKey);
 
 			if (gamepadBindingString == null || gamepadBindingString.isEmpty()) {
+				// System.out.println("DEBUG_GP: No gamepad binding for action: " + actionKeyBase); // Optional: spammy
 				continue;
 			}
 
+			// System.out.println("DEBUG_GP: Action: " + actionKeyBase + ", Binding: " + gamepadBindingString); // Optional: spammy
+
 			boolean currentState = false;
-			// Parse gamepadBindingString: GP<controller_index>_TYPE_<id>_<POS/NEG for axis>
-			// For now, assuming GP0 always.
-			String parts[] = gamepadBindingString.split("_");
-			if (parts.length < 3) continue; // Invalid format
+			String[] parts = gamepadBindingString.split("_"); // GP0_BUTTON_1, GP0_HAT_0_UP, GP0_AXIS_0_POS
 
-			String type = parts[1];
-			int index = Integer.parseInt(parts[2]);
+			if (parts.length < 3) {
+				System.err.println("DEBUG_GP: Invalid binding string format: " + gamepadBindingString + " for action " + actionKeyBase);
+				continue;
+			}
 
-			if ("BUTTON".equals(type)) {
-				if (SdlJoystick.SDL_JoystickNumButtons(joystick) > index) {
-					currentState = (SdlJoystick.SDL_JoystickGetButton(joystick, index) == 1);
+			// int gpIndex = Integer.parseInt(parts[0].substring(2)); // Assuming "GP0" -> 0, currently hardcoded to use joysticks.get(0)
+
+			try {
+				String type = parts[1];
+				int index = Integer.parseInt(parts[2]);
+
+				if ("BUTTON".equals(type)) {
+					if (parts.length == 3) { // GP0_BUTTON_1
+						byte buttonState = io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickGetButton(joystick, index);
+						currentState = (buttonState == 1);
+						// System.out.println("DEBUG_GP:  Button " + index + " state: " + buttonState); // Optional
+					}
+				} else if ("HAT".equals(type)) { // GP0_HAT_0_UP
+					if (parts.length == 4) {
+						byte hatState = io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickGetHat(joystick, index);
+						String direction = parts[3];
+						if ("UP".equals(direction)) currentState = (hatState == io.github.libsdl4j.api.joystick.SdlJoystickConst.SDL_HAT_UP);
+						else if ("DOWN".equals(direction)) currentState = (hatState == io.github.libsdl4j.api.joystick.SdlJoystickConst.SDL_HAT_DOWN);
+						else if ("LEFT".equals(direction)) currentState = (hatState == io.github.libsdl4j.api.joystick.SdlJoystickConst.SDL_HAT_LEFT);
+						else if ("RIGHT".equals(direction)) currentState = (hatState == io.github.libsdl4j.api.joystick.SdlJoystickConst.SDL_HAT_RIGHT);
+						// System.out.println("DEBUG_GP:  Hat " + index + " state: " + hatState + ", Checking for: " + direction); // Optional
+					}
+				} else if ("AXIS".equals(type)) { // GP0_AXIS_0_POS
+					if (parts.length == 4) {
+						short axisValue = io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickGetAxis(joystick, index);
+						String direction = parts[3];
+						if ("POS".equals(direction)) currentState = (axisValue > AXIS_DEADZONE_THRESHOLD);
+						else if ("NEG".equals(direction)) currentState = (axisValue < -AXIS_DEADZONE_THRESHOLD);
+						// System.out.println("DEBUG_GP:  Axis " + index + " value: " + axisValue + ", Checking for: " + direction); // Optional
+					}
 				}
-			} else if ("HAT".equals(type)) {
-				if (SdlJoystick.SDL_JoystickNumHats(joystick) > index) {
-					byte hatState = SdlJoystick.SDL_JoystickGetHat(joystick, index);
-					String direction = parts[3]; // UP, DOWN, LEFT, RIGHT
-					if ("UP".equals(direction)) currentState = (hatState & SdlJoystickConst.SDL_HAT_UP) != 0;
-					else if ("DOWN".equals(direction)) currentState = (hatState & SdlJoystickConst.SDL_HAT_DOWN) != 0;
-					else if ("LEFT".equals(direction)) currentState = (hatState & SdlJoystickConst.SDL_HAT_LEFT) != 0;
-					else if ("RIGHT".equals(direction)) currentState = (hatState & SdlJoystickConst.SDL_HAT_RIGHT) != 0;
-				}
-			} else if ("AXIS".equals(type)) {
-				if (SdlJoystick.SDL_JoystickNumAxes(joystick) > index) {
-					short axisValue = SdlJoystick.SDL_JoystickGetAxis(joystick, index);
-					String direction = parts[3]; // POS, NEG
-					if ("POS".equals(direction)) currentState = axisValue > AXIS_DEADZONE_THRESHOLD;
-					else if ("NEG".equals(direction)) currentState = axisValue < -AXIS_DEADZONE_THRESHOLD;
-				}
+			} catch (NumberFormatException e) {
+				System.err.println("DEBUG_GP: Error parsing index for binding: " + gamepadBindingString + " - " + e.getMessage());
+				continue;
+			} catch (Throwable t) { // Catch any other unexpected errors from SDL calls for this binding
+				System.err.println("DEBUG_GP: Unexpected error processing binding " + gamepadBindingString + ": " + t.getMessage());
+				t.printStackTrace();
+				continue;
 			}
 
 			boolean prevState = previousGamepadInputStates.getOrDefault(gamepadBindingString, false);
 
 			if (currentState != prevState) {
-				Integer awtVkKeyCode = actionToKeyboardKeyCodeMap.get("input_" + actionKeyBase);
-				if (awtVkKeyCode != null) {
+				System.out.println("DEBUG_GP: State change for " + actionKeyBase + " (" + gamepadBindingString + "): " + (currentState ? "PRESSED" : "RELEASED"));
+				previousGamepadInputStates.put(gamepadBindingString, currentState);
+
+				Integer keyboardKeyCode = actionToKeyboardKeyCodeMap.get("input_" + actionKeyBase); // ensure using "input_" prefix as in initActionToKeyboardKeyCodeMap
+				if (keyboardKeyCode != null) {
 					int actionIndex = -1;
 					for (int i = 0; i < AWTGUI.this.inputKeycodes.length; i++) {
-						if (AWTGUI.this.inputKeycodes[i] == awtVkKeyCode) {
+						if (AWTGUI.this.inputKeycodes[i] == keyboardKeyCode) { // Use object equality for Integer if it was Integer object, but VK_ codes are primitive ints.
 							actionIndex = i;
 							break;
 						}
 					}
 
 					if (actionIndex != -1) {
-						// Mobile.convertAWTKeycode expects an index that corresponds to its internal awtguiKeycodes mapping.
-						// This index IS the actionIndex from AWTGUI's perspective (0=LeftSoft, 1=RightSoft, etc.)
 						int canvasKeycode = Mobile.convertAWTKeycode(actionIndex);
 
-						if (canvasKeycode != 0 && canvasKeycode != Integer.MIN_VALUE) { // Check if valid Canvas keycode
-							if (currentState) { // Pressed
+						if (canvasKeycode != 0 && canvasKeycode != Integer.MIN_VALUE) {
+							if (currentState) {
 								Mobile.getPlatform().keyPressed(canvasKeycode);
-							} else { // Released
+							} else {
 								Mobile.getPlatform().keyReleased(canvasKeycode);
 							}
-							//Mobile.log(Mobile.LOG_DEBUG, "Gamepad: " + gamepadBindingString + (currentState ? " Pressed" : " Released") + " -> AWT VK " + awtVkKeyCode + " -> ActionIndex " + actionIndex + " -> CanvasKey " + canvasKeycode);
+							System.out.println("DEBUG_GP: Dispatching KeyEvent for " + actionKeyBase + " (Canvas Key: " + canvasKeycode + "): Type=" + (currentState ? "PRESS" : "RELEASE"));
+						} else {
+							System.err.println("DEBUG_GP: Invalid Canvas keycode for action " + actionKeyBase + " (AWT VK: " + keyboardKeyCode + ", ActionIndex: " + actionIndex + ")");
 						}
+					} else {
+						System.err.println("DEBUG_GP: Could not find actionIndex for AWT VK: " + keyboardKeyCode + " for action " + actionKeyBase);
 					}
+				} else {
+					System.err.println("DEBUG_GP: No keyboard key code mapping found for action: " + actionKeyBase);
 				}
-				previousGamepadInputStates.put(gamepadBindingString, currentState);
 			}
 		}
 	}
