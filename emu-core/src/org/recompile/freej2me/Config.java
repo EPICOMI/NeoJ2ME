@@ -54,7 +54,7 @@ public class Config
 
 	public final String[] supportedResolutions = {"96x65","101x64","101x80","128x128","130x130","120x160","128x160","132x176","176x208","176x220","220x176","208x208","180x320","320x180","208x320","240x320","320x240","240x400","400x240","240x432","240x480","360x360","352x416","360x640","640x360","640x480","480x800","800x480"};
 
-	int inputKeycodes[] = new int[] { 
+	private int inputKeycodes[] = new int[] {
 		81,  // Q Key
 		87,  // W Key
 		38,  // Arrow Up
@@ -242,6 +242,27 @@ public class Config
 			if(!sysSettings.containsKey("input_FastForward")) { sysSettings.put("input_FastForward", ""  + inputKeycodes[19]); }
 			if(!sysSettings.containsKey("input_Screenshot"))  { sysSettings.put("input_Screenshot", ""   + inputKeycodes[20]); }
 			if(!sysSettings.containsKey("input_PauseResume")) { sysSettings.put("input_PauseResume", ""  + inputKeycodes[21]); }
+
+			// Gamepad Input settings
+			if(!sysSettings.containsKey("input_ArrowUp_Gamepad")) { sysSettings.put("input_ArrowUp_Gamepad", "GP0_HAT_0_UP"); }
+			if(!sysSettings.containsKey("input_ArrowDown_Gamepad")) { sysSettings.put("input_ArrowDown_Gamepad", "GP0_HAT_0_DOWN"); }
+			if(!sysSettings.containsKey("input_ArrowLeft_Gamepad")) { sysSettings.put("input_ArrowLeft_Gamepad", "GP0_HAT_0_LEFT"); }
+			if(!sysSettings.containsKey("input_ArrowRight_Gamepad")) { sysSettings.put("input_ArrowRight_Gamepad", "GP0_HAT_0_RIGHT"); }
+			if(!sysSettings.containsKey("input_Fire_Gamepad")) { sysSettings.put("input_Fire_Gamepad", "GP0_BUTTON_0"); }
+			if(!sysSettings.containsKey("input_LeftSoft_Gamepad")) { sysSettings.put("input_LeftSoft_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_RightSoft_Gamepad")) { sysSettings.put("input_RightSoft_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Num1_Gamepad")) { sysSettings.put("input_Num1_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Num2_Gamepad")) { sysSettings.put("input_Num2_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Num3_Gamepad")) { sysSettings.put("input_Num3_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Num4_Gamepad")) { sysSettings.put("input_Num4_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Num5_Gamepad")) { sysSettings.put("input_Num5_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Num6_Gamepad")) { sysSettings.put("input_Num6_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Num7_Gamepad")) { sysSettings.put("input_Num7_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Num8_Gamepad")) { sysSettings.put("input_Num8_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Num9_Gamepad")) { sysSettings.put("input_Num9_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Num0_Gamepad")) { sysSettings.put("input_Num0_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Star_Gamepad")) { sysSettings.put("input_Star_Gamepad", ""); }
+			if(!sysSettings.containsKey("input_Pound_Gamepad")) { sysSettings.put("input_Pound_Gamepad", ""); }
 
 			inputKeycodes[0] = Integer.parseInt(sysSettings.get("input_LeftSoft"));
 			inputKeycodes[1] = Integer.parseInt(sysSettings.get("input_RightSoft"));
@@ -510,8 +531,41 @@ public class Config
 		sysSettings.put("input_FastForward", ""  + inputKeycodes[19]);
 		sysSettings.put("input_Screenshot",  ""  + inputKeycodes[20]);
 		sysSettings.put("input_PauseResume", ""  + inputKeycodes[21]);
+
+		// Default Gamepad Bindings
+		sysSettings.put("input_ArrowUp_Gamepad", "GP0_HAT_0_UP");
+		sysSettings.put("input_ArrowDown_Gamepad", "GP0_HAT_0_DOWN");
+		sysSettings.put("input_ArrowLeft_Gamepad", "GP0_HAT_0_LEFT");
+		sysSettings.put("input_ArrowRight_Gamepad", "GP0_HAT_0_RIGHT");
+		sysSettings.put("input_Fire_Gamepad", "GP0_BUTTON_0");
+		sysSettings.put("input_LeftSoft_Gamepad", ""); // No default, let user configure
+		sysSettings.put("input_RightSoft_Gamepad", ""); // No default, let user configure
+		sysSettings.put("input_Num1_Gamepad", "");
+		sysSettings.put("input_Num2_Gamepad", "");
+		sysSettings.put("input_Num3_Gamepad", "");
+		sysSettings.put("input_Num4_Gamepad", "");
+		sysSettings.put("input_Num5_Gamepad", "");
+		sysSettings.put("input_Num6_Gamepad", "");
+		sysSettings.put("input_Num7_Gamepad", "");
+		sysSettings.put("input_Num8_Gamepad", "");
+		sysSettings.put("input_Num9_Gamepad", "");
+		sysSettings.put("input_Num0_Gamepad", "");
+		sysSettings.put("input_Star_Gamepad", "");
+		sysSettings.put("input_Pound_Gamepad", "");
+
 		saveConfig();
 		onChange.run();
 	}
 
+	public int[] getInputKeycodes() {
+		return java.util.Arrays.copyOf(inputKeycodes, inputKeycodes.length);
+	}
+
+	public void setInputKeycodes(int[] newKeycodes) {
+		if (newKeycodes != null && newKeycodes.length == this.inputKeycodes.length) {
+			System.arraycopy(newKeycodes, 0, this.inputKeycodes, 0, this.inputKeycodes.length);
+		} else {
+			Mobile.log(Mobile.LOG_ERROR, "Config: Invalid attempt to set inputKeycodes.");
+		}
+	}
 }

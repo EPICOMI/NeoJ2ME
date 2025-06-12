@@ -933,6 +933,11 @@ public class FreeJ2ME
 					if (lcd != null) {
 						lcd.repaint();
 					}
+
+					// Process gamepad input
+					if (awtGUI != null && lcd != null && awtGUI.hasLoadedFile()) {
+						awtGUI.processGamepadInput(lcd);
+					}
 				}
 			});
 
