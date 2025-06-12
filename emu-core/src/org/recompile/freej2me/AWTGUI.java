@@ -39,6 +39,7 @@ import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyAdapter;
+import java.awt.Component;
 
 import java.io.File;
 import java.io.FilenameFilter;
@@ -306,6 +307,15 @@ public final class AWTGUI
 			// Set action command to identify the button later
 			gamepadInputButtons[i].setActionCommand("SetGamepad_" + actionKeys[i]);
 		}
+
+		// Set initial labels for keyboard input buttons
+		for(int i = 0; i < inputButtons.length; i++) {
+            if (i < this.inputKeycodes.length) {
+                inputButtons[i].setLabel(java.awt.event.KeyEvent.getKeyText(this.inputKeycodes[i]));
+            } else {
+                inputButtons[i].setLabel("Undefined");
+            }
+        }
 
 		// Initialize SDL joystick subsystem
 		if (SDL.SDL_InitSubSystem(SDL.SDL_INIT_JOYSTICK) < 0) {
@@ -1175,10 +1185,12 @@ public final class AWTGUI
 					}
 				}
 				// Also ensure keyboard buttons are up-to-date with current config
-				this.inputKeycodes = config.getInputKeycodes(); // Refresh from config
-				System.arraycopy(this.inputKeycodes, 0, this.newInputKeycodes, 0, this.newInputKeycodes.length); // Sync temp copy
+				AWTGUI.this.inputKeycodes = config.getInputKeycodes(); // Refresh from config
+				System.arraycopy(AWTGUI.this.inputKeycodes, 0, AWTGUI.this.newInputKeycodes, 0, AWTGUI.this.newInputKeycodes.length); // Sync temp copy
 				for(int i = 0; i < inputButtons.length; i++) {
-					inputButtons[i].setLabel(KeyEvent.getKeyText(this.inputKeycodes[i]));
+					if (i < AWTGUI.this.inputKeycodes.length) { // Added boundary check for robustness
+						inputButtons[i].setLabel(KeyEvent.getKeyText(AWTGUI.this.inputKeycodes[i]));
+					}
 				}
 				awtDialogs[4].setVisible(true);
 			}
@@ -1186,11 +1198,9 @@ public final class AWTGUI
 			else if(a.getActionCommand() == "ApplyInputs") 
 			{
 				// Update local AWTGUI's working copy for keyboard
-				System.arraycopy(newInputKeycodes, 0, inputKeycodes, 0, inputKeycodes.length);
+				System.arraycopy(AWTGUI.this.newInputKeycodes, 0, AWTGUI.this.inputKeycodes, 0, AWTGUI.this.inputKeycodes.length);
 				// Update Config's master copy for keyboard
-				config.setInputKeycodes(newInputKeycodes);
-				// Now call updateAWTInputs, which uses Config's internal inputKeycodes to save to sysSettings
-				config.updateAWTInputs();
+				config.setInputKeycodes(AWTGUI.this.newInputKeycodes); // This should call config.updateAWTInputs() internally
 
 				// Save Gamepad Bindings from our temporary map
 				for (java.util.Map.Entry<String, String> entry : newGamepadBindings.entrySet()) {
