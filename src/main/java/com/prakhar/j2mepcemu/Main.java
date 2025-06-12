@@ -7,11 +7,13 @@ import java.awt.dnd.*;
 import java.awt.datatransfer.*;
 import java.awt.event.*;
 import java.io.File;
-import java.net.URL; // Added for diagnostic code
+import java.io.InputStream; // For manual extraction
+import java.io.IOException;
+import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path; // For manual extraction
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,19 +40,50 @@ public class Main {
 
     public static void main(String[] args) {
         System.setProperty("jna.debug_load", "true");
-        System.setProperty("jna.debug_load.jna", "true"); // More verbose JNA loading
+        System.setProperty("jna.debug_load.jna", "true");
 
-        // Diagnostic: Check if ClassLoader can find the resource
         String resourcePath = "com/sun/jna/platform/win32-x86-64/SDL2.dll";
-        // Using a known class from the same module/project (Main.class) to get the ClassLoader
-        // This is generally more reliable than Thread.currentThread().getContextClassLoader() in some environments.
-        java.net.URL resourceUrl = com.prakhar.j2mepcemu.Main.class.getClassLoader().getResource(resourcePath);
-        if (resourceUrl != null) {
-            System.out.println("JNA Diagnostic: Resource found by ClassLoader: " + resourceUrl.toExternalForm());
+        URL sdlResourceUrl = com.prakhar.j2mepcemu.Main.class.getClassLoader().getResource(resourcePath);
+
+        if (sdlResourceUrl != null) {
+            System.out.println("JNA Manual Extract: Resource found by ClassLoader: " + sdlResourceUrl.toExternalForm());
+            try {
+                // Create a temporary directory for the native library
+                Path tempDir = Files.createTempDirectory("jna-sdl-natives-");
+                File tempDirFile = tempDir.toFile();
+                tempDirFile.deleteOnExit(); // Request deletion of directory on JVM exit
+
+                File nativeLibFile = new File(tempDirFile, "SDL2.dll");
+                nativeLibFile.deleteOnExit(); // Request deletion of file on JVM exit
+
+                try (InputStream in = sdlResourceUrl.openStream()) {
+                    Files.copy(in, nativeLibFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+
+                System.out.println("JNA Manual Extract: Extracted SDL2.dll to: " + nativeLibFile.getAbsolutePath());
+                System.setProperty("jna.library.path", tempDirFile.getAbsolutePath());
+                System.out.println("JNA Manual Extract: Set jna.library.path to: " + tempDirFile.getAbsolutePath());
+
+                // Add a shutdown hook to attempt more robust cleanup of the directory
+                // This is a best-effort, as deleteOnExit might not always clean directories.
+                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                    try {
+                        Files.deleteIfExists(nativeLibFile.toPath());
+                        Files.deleteIfExists(tempDir); // Try deleting directory
+                        System.out.println("JNA Manual Extract: Cleaned up temporary native files.");
+                    } catch (IOException e) {
+                        System.err.println("JNA Manual Extract: Error cleaning up temporary native files: " + e.getMessage());
+                    }
+                }));
+
+            } catch (IOException e) {
+                System.err.println("JNA Manual Extract: Error extracting SDL2.dll: " + e.getMessage());
+                e.printStackTrace(); // Print stack trace for detailed error
+            }
         } else {
-            System.err.println("JNA Diagnostic: Resource NOT FOUND by ClassLoader: " + resourcePath);
+            System.err.println("JNA Manual Extract: SDL2.dll resource NOT FOUND by ClassLoader: " + resourcePath);
         }
-        // End Diagnostic
+        // End Manual Extraction Logic
 
         // String projectRoot = System.getProperty("user.dir");
         // // Path to the resources directory within the emu-core module source
