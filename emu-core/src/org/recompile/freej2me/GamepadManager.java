@@ -30,8 +30,7 @@ public class GamepadManager {
             gamepads = new ArrayList<>();
             for (Controller controller : controllers) {
                 if (controller.getType() == Controller.Type.GAMEPAD ||
-                    controller.getType() == Controller.Type.STICK ||
-                    controller.getType() == Controller.Type.JOYSTICK) { // JOYSTICK for wider compatibility
+                    controller.getType() == Controller.Type.STICK) { // JOYSTICK for wider compatibility
                     gamepads.add(controller);
                 }
             }
