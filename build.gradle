@@ -16,7 +16,7 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     implementation project(':emu-core')
-    implementation 'net.java.jinput:jinput:2.0.9'
+    // implementation 'net.java.jinput:jinput:2.0.9' // Moved to emu-core project
 }
 
 test {
@@ -31,4 +31,11 @@ subprojects {
     apply plugin: 'java'
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
+}
+
+project(':emu-core') {
+    dependencies {
+        implementation 'net.java.jinput:jinput:2.0.9'
+        // Other emu-core specific dependencies can be added here
+    }
 }
