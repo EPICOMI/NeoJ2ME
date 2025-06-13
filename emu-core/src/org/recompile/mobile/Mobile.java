@@ -323,7 +323,12 @@ public class Mobile
 
 	public static final int getMobileKey(int keycode) 
 	{
-		log(Mobile.LOG_DEBUG, Mobile.class.getPackage().getName() + "." + Mobile.class.getSimpleName() + ": " + "KeyPress:" + keyArray[keycode]);
+		// Log received keycode and corresponding string from keyArray
+		if (keycode >= 0 && keycode < keyArray.length) {
+			log(Mobile.LOG_DEBUG, Mobile.class.getPackage().getName() + "." + Mobile.class.getSimpleName() + ": " + "getMobileKey: Received keycode=" + keycode + ", keyString=" + keyArray[keycode]);
+		} else {
+			log(Mobile.LOG_DEBUG, Mobile.class.getPackage().getName() + "." + Mobile.class.getSimpleName() + ": " + "getMobileKey: Received keycode=" + keycode + " (out of bounds for keyArray)");
+		}
 
 		// These keys are overridden by the modifier variables (comments simulate the Libretro interface with a NS Pro Controller)
 		if(lg)
@@ -464,7 +469,145 @@ public class Mobile
 		}
 
 		// If a matching key wasn't found, return 0;
-		return 0;
+		int J2MEKeyCode = 0;
+		// NOTE: The original code had multiple return points. Consolidating to one for easier logging.
+		// The logic below is equivalent to the original, just structured to set J2MEKeyCode.
+
+		if (lg) {
+			switch (keycode) {
+				case 0: J2MEKeyCode = LG_UP; break; // Up
+				case 1: J2MEKeyCode = LG_DOWN; break; // Down
+				case 2: J2MEKeyCode = LG_LEFT; break; // Left
+				case 3: J2MEKeyCode = LG_RIGHT; break; // Right
+				case 7: J2MEKeyCode = LG_FIRE; break; // Y
+				case 8: J2MEKeyCode = LG_SOFT2; break; // Start
+				case 9: J2MEKeyCode = LG_SOFT1; break; // Select
+				default: J2MEKeyCode = 0; // Should not happen if keycode is from keyArray
+			}
+		} else if (motorola) {
+			switch (keycode) {
+				case 0: J2MEKeyCode = MOTOROLA_UP; break; // Up
+				case 1: J2MEKeyCode = MOTOROLA_DOWN; break; // Down
+				case 2: J2MEKeyCode = MOTOROLA_LEFT; break; // Left
+				case 3: J2MEKeyCode = MOTOROLA_RIGHT; break; // Right
+				case 7: J2MEKeyCode = MOTOROLA_FIRE; break; // Y
+				case 8: J2MEKeyCode = MOTOROLA_SOFT2; break; // Start
+				case 9: J2MEKeyCode = MOTOROLA_SOFT1; break; // Select
+				default: J2MEKeyCode = 0;
+			}
+		} else if (motoTriplets) {
+			switch (keycode) {
+				case 0: J2MEKeyCode = TRIPLETS_UP; break; // Up
+				case 1: J2MEKeyCode = TRIPLETS_DOWN; break; // Down
+				case 2: J2MEKeyCode = TRIPLETS_LEFT; break; // Left
+				case 3: J2MEKeyCode = TRIPLETS_RIGHT; break; // Right
+				case 7: J2MEKeyCode = TRIPLETS_FIRE; break; // Y
+				case 8: J2MEKeyCode = TRIPLETS_SOFT2; break; // Start
+				case 9: J2MEKeyCode = TRIPLETS_SOFT1; break; // Select
+				default: J2MEKeyCode = 0;
+			}
+		} else if (motoV8) {
+			switch (keycode) {
+				case 0: J2MEKeyCode = MOTOV8_UP; break; // Up
+				case 1: J2MEKeyCode = MOTOV8_DOWN; break; // Down
+				case 2: J2MEKeyCode = MOTOV8_LEFT; break; // Left
+				case 3: J2MEKeyCode = MOTOV8_RIGHT; break; // Right
+				case 7: J2MEKeyCode = MOTOV8_FIRE; break; // Y
+				case 8: J2MEKeyCode = MOTOV8_SOFT2; break; // Start
+				case 9: J2MEKeyCode = MOTOV8_SOFT1; break; // Select
+				default: J2MEKeyCode = 0;
+			}
+		} else if (nokiaKeyboard) {
+			switch (keycode) {
+				case 0: J2MEKeyCode = NOKIAKB_UP; break; // Up
+				case 1: J2MEKeyCode = NOKIAKB_DOWN; break; // Down
+				case 2: J2MEKeyCode = NOKIAKB_LEFT; break; // Left
+				case 3: J2MEKeyCode = NOKIAKB_RIGHT; break; // Right
+				case 4: J2MEKeyCode = NOKIAKB_NUM9; break; // A
+				case 5: J2MEKeyCode = NOKIAKB_NUM7; break; // B
+				case 6: J2MEKeyCode = NOKIAKB_NUM0; break; // X
+				case 7: J2MEKeyCode = NOKIAKB_SOFT3; break; // Y
+				case 8: J2MEKeyCode = NOKIAKB_SOFT2; break; // Start
+				case 9: J2MEKeyCode = NOKIAKB_SOFT1; break; // Select
+				case 10: J2MEKeyCode = NOKIAKB_NUM1; break; // L
+				case 11: J2MEKeyCode = NOKIAKB_NUM3; break; // R
+				case 12: J2MEKeyCode = NOKIAKB_STAR; break; // L2
+				case 13: J2MEKeyCode = NOKIAKB_POUND; break; // R2
+				case 14: J2MEKeyCode = NOKIAKB_NUM2; break; // Up (Analog)
+				case 15: J2MEKeyCode = NOKIAKB_NUM4; break; // Left (Analog)
+				case 16: J2MEKeyCode = NOKIAKB_NUM6; break; // Right (Analog)
+				case 17: J2MEKeyCode = NOKIAKB_NUM8; break; // Down (Analog)
+				case 18: J2MEKeyCode = NOKIAKB_NUM5; break; // User-Mappable (often same as case 7)
+				default: J2MEKeyCode = 0;
+			}
+		} else if (sagem) {
+			switch (keycode) {
+				case 0: J2MEKeyCode = SAGEM_UP; break; // Up
+				case 1: J2MEKeyCode = SAGEM_DOWN; break; // Down
+				case 2: J2MEKeyCode = SAGEM_LEFT; break; // Left
+				case 3: J2MEKeyCode = SAGEM_RIGHT; break; // Right
+				case 7: J2MEKeyCode = SAGEM_SOFT3; break; // Y
+				case 8: J2MEKeyCode = SAGEM_SOFT2; break; // Start
+				case 9: J2MEKeyCode = SAGEM_SOFT1; break; // Select
+				default: J2MEKeyCode = 0;
+			}
+		} else if (siemens) {
+			switch (keycode) {
+				case 0: J2MEKeyCode = SIEMENS_UP; break; // Up
+				case 1: J2MEKeyCode = SIEMENS_DOWN; break; // Down
+				case 2: J2MEKeyCode = SIEMENS_LEFT; break; // Left
+				case 3: J2MEKeyCode = SIEMENS_RIGHT; break; // Right
+				case 7: J2MEKeyCode = SIEMENS_FIRE; break; // Y
+				case 8: J2MEKeyCode = SIEMENS_SOFT2; break; // Start
+				case 9: J2MEKeyCode = SIEMENS_SOFT1; break; // Select
+				default: J2MEKeyCode = 0;
+			}
+		} else if (siemensold) {
+			switch (keycode) {
+				// Up, Down, Left, Right, Fire are handled by J2ME Canvas
+				case 8: J2MEKeyCode = SIEMENS_SOFT2; break; // Start
+				case 9: J2MEKeyCode = SIEMENS_SOFT1; break; // Select
+				default:
+					// Fall through to default J2ME Canvas standard keycodes if not SOFT1 or SOFT2
+					// This requires re-checking the keycode against the standard mappings.
+					// To avoid duplicating the switch, we can let it fall through if no specific siemensold key is matched.
+					// However, the original logic implies that for siemensold, only SOFT1 and SOFT2 are special.
+					// So, if it's not 8 or 9, it should use the default mapping below.
+					// Let's ensure this happens by setting a flag or by structuring the if-else chain.
+					// The current structure will correctly fall through to the final default switch.
+					break;
+			}
+		}
+
+		// If no specific phone model matched and set J2MEKeyCode, or if siemensold and not a softkey:
+		if (J2MEKeyCode == 0 && !(lg || motorola || motoTriplets || motoV8 || nokiaKeyboard || sagem || siemens || (siemensold && (keycode == 8 || keycode == 9) ))) {
+			// J2ME Canvas standard keycodes (not exactly standard, just the most common mappings), to match against any keys not covered above.
+			switch (keycode) {
+				case 0: J2MEKeyCode = NOKIA_UP; break; // Up
+				case 1: J2MEKeyCode = NOKIA_DOWN; break; // Down
+				case 2: J2MEKeyCode = NOKIA_LEFT; break; // Left
+				case 3: J2MEKeyCode = NOKIA_RIGHT; break; // Right
+				case 4: J2MEKeyCode = KEY_NUM9; break; // A
+				case 5: J2MEKeyCode = KEY_NUM7; break; // B
+				case 6: J2MEKeyCode = KEY_NUM0; break; // X
+				case 7: J2MEKeyCode = NOKIA_SOFT3; break; // Y
+				case 8: J2MEKeyCode = NOKIA_SOFT2; break; // Start
+				case 9: J2MEKeyCode = NOKIA_SOFT1; break; // Select
+				case 10: J2MEKeyCode = KEY_NUM1; break; // L
+				case 11: J2MEKeyCode = KEY_NUM3; break; // R
+				case 12: J2MEKeyCode = KEY_STAR; break; // L2
+				case 13: J2MEKeyCode = KEY_POUND; break; // R2
+				case 14: J2MEKeyCode = KEY_NUM2; break; // Up (Analog)
+				case 15: J2MEKeyCode = KEY_NUM4; break; // Left (Analog)
+				case 16: J2MEKeyCode = KEY_NUM6; break; // Right (Analog)
+				case 17: J2MEKeyCode = KEY_NUM8; break; // Down (Analog)
+				case 18: J2MEKeyCode = KEY_NUM5; break; // User-Mappable (often same as case 7)
+				default: J2MEKeyCode = 0; // Default if no match
+			}
+		}
+
+		log(Mobile.LOG_DEBUG, Mobile.class.getPackage().getName() + "." + Mobile.class.getSimpleName() + ": " + "getMobileKey: Returning J2MEKeyCode=" + J2MEKeyCode);
+		return J2MEKeyCode;
 	}
 
 	// This is just for a correct handling of Canvas.getGameAction(), though it didn't fix some siemens jars that still get stuck in the LCDUI menu

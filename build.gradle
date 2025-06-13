@@ -27,40 +27,7 @@ application {
 }
 
 subprojects {
-    // apply plugin: 'java' // Apply java or java-library per project
+    apply plugin: 'java'
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
-}
-
-project(':emu-core') {
-    apply plugin: 'java-library' // Apply java-library plugin to use 'api' configuration
-    sourceCompatibility = '1.8' // Ensure emu-core also targets Java 8
-    targetCompatibility = '1.8' // Ensure emu-core also targets Java 8
-    repositories {
-        // In case any of emu-core's dependencies are from Maven Central
-        // and not just local JARs (though for this specific issue, we focus on local JARs)
-        mavenCentral()
-    }
-    sourceSets {
-        main {
-            java {
-                srcDirs = ['src'] // Sources are directly under emu-core/src
-            }
-            resources {
-                srcDirs = ['src/main/resources'] // Resources follow conventional path
-            }
-        }
-    }
-    dependencies {
-        // Add all JARs from emu-core/lib as implementation dependencies
-        // The paths are relative to the emu-core project directory.
-        api files('lib/jna-5.15.0.jar')
-        api files('lib/jna-platform-5.15.0.jar')
-        implementation files('lib/libsdl4j-2.24.0-1.0_mini.jar')
-    }
-    tasks.named('compileJava').configure {
-        doFirst {
-            println "emu-core compileJava classpath: ${classpath.asPath}"
-        }
-    }
 }

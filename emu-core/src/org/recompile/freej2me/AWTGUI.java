@@ -39,22 +39,11 @@ import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyAdapter;
-import java.awt.Component;
 
 import java.io.File;
 import java.io.FilenameFilter;
 
 import java.util.Arrays;
-import java.util.ArrayList;
-
-// import org.libsdl.SDL; // Old import
-// import org.libsdl.SDL_Joystick; // Old import
-import io.github.libsdl4j.api.Sdl;
-import io.github.libsdl4j.api.joystick.SdlJoystick; // Class with static methods
-import io.github.libsdl4j.api.joystick.SDL_Joystick; // JNA PointerType handle
-import io.github.libsdl4j.api.SdlSubSystemConst; // For SDL_INIT_JOYSTICK
-import io.github.libsdl4j.api.joystick.SdlJoystickConst; // For HAT states and other joystick constants
-import io.github.libsdl4j.api.error.SdlError; // For GetError
 
 import org.recompile.mobile.Mobile;
 import org.recompile.mobile.MobilePlatform;
@@ -62,7 +51,6 @@ import org.recompile.mobile.MobilePlatform;
 public final class AWTGUI 
 {
 	final String VERSION = "1.45";
-	private ArrayList<SDL_Joystick> joysticks = new ArrayList<SDL_Joystick>(); // Use the handle type
 	/* This is used to indicate to FreeJ2ME that it has to call "settingsChanged()" to apply changes made here */
 	private boolean hasPendingChange;
 
@@ -153,26 +141,16 @@ public final class AWTGUI
 	};
 
 	/* Array of inputs in order to support input remapping */
-	int inputKeycodes[]; // Initialized in constructor after config is available
-	private int newInputKeycodes[]; // Initialized in constructor
-
-	// Gamepad input buttons and action keys
-	final Button gamepadInputButtons[] = new Button[inputButtons.length];
-	final String actionKeys[] = new String[] {
-		"LeftSoft", "RightSoft", "ArrowUp", "ArrowLeft", "Fire", "ArrowRight", "ArrowDown",
-		"Num7", "Num8", "Num9", "Num4", "Num5", "Num6", "Num1", "Num2", "Num3",
-		"Star", "Num0", "Pound",
-		"FastForward", "Screenshot", "PauseResume"
+	int inputKeycodes[] = new int[] {
+		KeyEvent.VK_Q, KeyEvent.VK_W,
+		KeyEvent.VK_UP, KeyEvent.VK_LEFT, KeyEvent.VK_ENTER, KeyEvent.VK_RIGHT, KeyEvent.VK_DOWN,
+		KeyEvent.VK_NUMPAD7, KeyEvent.VK_NUMPAD8, KeyEvent.VK_NUMPAD9,
+		KeyEvent.VK_NUMPAD4, KeyEvent.VK_NUMPAD5, KeyEvent.VK_NUMPAD6,
+		KeyEvent.VK_NUMPAD1, KeyEvent.VK_NUMPAD2, KeyEvent.VK_NUMPAD3,
+		KeyEvent.VK_E, KeyEvent.VK_NUMPAD0, KeyEvent.VK_R, KeyEvent.VK_SPACE, KeyEvent.VK_C, KeyEvent.VK_X
 	};
-	// Temporary storage for new gamepad bindings, similar to newInputKeycodes
-	private final java.util.HashMap<String, String> newGamepadBindings = new java.util.HashMap<String, String>();
-	private int activeGamepadBindingButtonIndex = -1; // Index of the gamepad button currently waiting for input
-	private Thread gamepadPollingThread = null;
-	private volatile boolean stopGamepadPolling = false;
-	private final java.util.HashMap<String, Boolean> previousGamepadInputStates = new java.util.HashMap<>();
-	private final java.util.HashMap<String, Integer> actionToKeyboardKeyCodeMap = new java.util.HashMap<>();
-	private static final short AXIS_DEADZONE_THRESHOLD = 8000;
 
+	private final int newInputKeycodes[] = Arrays.copyOf(inputKeycodes, inputKeycodes.length);
 
 	final Choice resChoice = new Choice();
 
@@ -302,47 +280,6 @@ public final class AWTGUI
 	public AWTGUI(Config config)
 	{
 		this.config = config;
-		this.inputKeycodes = config.getInputKeycodes();
-		this.newInputKeycodes = Arrays.copyOf(this.inputKeycodes, this.inputKeycodes.length);
-		initActionToKeyboardKeyCodeMap();
-
-		// Initialize Gamepad Buttons
-		for (int i = 0; i < gamepadInputButtons.length; i++) {
-			gamepadInputButtons[i] = new Button("GP: None"); // Default text
-			gamepadInputButtons[i].setBackground(FreeJ2ME.freeJ2MEDragColor);
-			gamepadInputButtons[i].setForeground(Color.CYAN); // Different color for distinction
-			// Set action command to identify the button later
-			gamepadInputButtons[i].setActionCommand("SetGamepad_" + actionKeys[i]);
-		}
-
-		// Set initial labels for keyboard input buttons
-		for(int i = 0; i < inputButtons.length; i++) {
-            if (i < this.inputKeycodes.length) {
-                inputButtons[i].setLabel(java.awt.event.KeyEvent.getKeyText(this.inputKeycodes[i]));
-            } else {
-                inputButtons[i].setLabel("Undefined");
-            }
-        }
-
-		// Initialize SDL joystick subsystem
-		if (Sdl.SDL_InitSubSystem(SdlSubSystemConst.SDL_INIT_JOYSTICK) < 0) {
-			Mobile.log(Mobile.LOG_ERROR, "Failed to initialize SDL joystick subsystem: " + SdlError.SDL_GetError()); // Use SdlError class
-		} else {
-			int numJoysticks = SdlJoystick.SDL_NumJoysticks();
-			Mobile.log(Mobile.LOG_INFO, "Number of joysticks detected: " + numJoysticks);
-			for (int i = 0; i < numJoysticks; i++) {
-				SDL_Joystick joystick = SdlJoystick.SDL_JoystickOpen(i); // Returns SDL_Joystick handle
-				if (joystick != null) {
-					joysticks.add(joystick);
-					Mobile.log(Mobile.LOG_INFO, "Opened joystick " + i + ": " + SdlJoystick.SDL_JoystickName(joystick));
-					Mobile.log(Mobile.LOG_INFO, "  Axes: " + SdlJoystick.SDL_JoystickNumAxes(joystick));
-					Mobile.log(Mobile.LOG_INFO, "  Buttons: " + SdlJoystick.SDL_JoystickNumButtons(joystick));
-					Mobile.log(Mobile.LOG_INFO, "  Hats: " + SdlJoystick.SDL_JoystickNumHats(joystick));
-				} else {
-					Mobile.log(Mobile.LOG_ERROR, "Failed to open joystick " + i + ": " + SdlError.SDL_GetError()); // Use SdlError class
-				}
-			}
-		}
 
 		resChoice.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
 		totalMemLabel.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
@@ -411,11 +348,10 @@ public final class AWTGUI
 		/* Input mapping dialog: It's a grid, so a few tricks had to be employed to align everything up */
 		awtDialogs[4].setBackground(FreeJ2ME.freeJ2MEBGColor);
         awtDialogs[4].setForeground(Color.ORANGE);
-        // New layout: Label | Keyboard Button | Gamepad Button
-		awtDialogs[4].setLayout(new GridLayout(0, 3));
-		awtDialogs[4].setSize(380, 720); // Increased size
+		awtDialogs[4].setLayout(new GridLayout(0, 3)); /* Get as many rows as needed, as long it still uses only 3 columns */
+		awtDialogs[4].setSize(240, 440);
 		awtDialogs[4].setLocationRelativeTo(main);
-		awtDialogs[4].setResizable(true); // Allow resizing for now, consider JScrollPane later
+		awtDialogs[4].setResizable(false);
 		
 
 		// Setup input button colors
@@ -431,29 +367,85 @@ public final class AWTGUI
 			inputButtons[i].setForeground(Color.ORANGE);
 		}
 
-		awtDialogs[4].add(new Label("Action", Label.CENTER));
-		awtDialogs[4].add(new Label("Keyboard", Label.CENTER));
-		awtDialogs[4].add(new Label("Gamepad", Label.CENTER));
+		awtDialogs[4].add(new Label("Map keys by"));
+		awtDialogs[4].add(new Label("clicking each"));
+		awtDialogs[4].add(new Label("button below"));
+
+		awtDialogs[4].add(awtButtons[5]);
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(awtButtons[6]);
+
+		awtDialogs[4].add(new Label("-----------------------"));
+		awtDialogs[4].add(new Label("-----------------------"));
+		awtDialogs[4].add(new Label("-----------------------"));
+
+		awtDialogs[4].add(inputButtons[0]);
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(inputButtons[1]);
+
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(inputButtons[2]);
+		awtDialogs[4].add(new Label(""));
+
+		awtDialogs[4].add(inputButtons[3]);
+		awtDialogs[4].add(inputButtons[4]);
+		awtDialogs[4].add(inputButtons[5]);
+
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(inputButtons[6]);
+		awtDialogs[4].add(new Label(""));
+
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(new Label(""));
 		
-		// Add Apply and Cancel buttons at the top
-		awtDialogs[4].add(awtButtons[5]); // Apply Inputs
-		awtDialogs[4].add(new Label("")); // Spacer
-		awtDialogs[4].add(awtButtons[6]); // Cancel Inputs
+		awtDialogs[4].add(inputButtons[7]);
+		awtDialogs[4].add(inputButtons[8]);
+		awtDialogs[4].add(inputButtons[9]);
 
+		awtDialogs[4].add(inputButtons[10]);
+		awtDialogs[4].add(inputButtons[11]);
+		awtDialogs[4].add(inputButtons[12]);
 
-		String[] actionLabels = new String[] {
-			"Left Soft", "Right Soft", "Arrow Up", "Arrow Left", "Fire", "Arrow Right", "Arrow Down",
-			"Num 7", "Num 8", "Num 9", "Num 4", "Num 5", "Num 6", "Num 1", "Num 2", "Num 3",
-			"Star", "Num 0", "Pound",
-			"Fast Fwd", "Screenshot", "Pause/Res"
-		};
+		awtDialogs[4].add(inputButtons[13]);
+		awtDialogs[4].add(inputButtons[14]);
+		awtDialogs[4].add(inputButtons[15]);
 
-		for (int i = 0; i < inputButtons.length; i++) {
-			Label actionLabel = new Label(actionLabels[i], Label.LEFT);
-			awtDialogs[4].add(actionLabel);
-			awtDialogs[4].add(inputButtons[i]);
-			awtDialogs[4].add(gamepadInputButtons[i]);
-		}
+		awtDialogs[4].add(inputButtons[16]);
+		awtDialogs[4].add(inputButtons[17]);
+		awtDialogs[4].add(inputButtons[18]);
+
+		awtDialogs[4].add(new Label("-----------------------"));
+		awtDialogs[4].add(new Label("-----------------------"));
+		awtDialogs[4].add(new Label("-----------------------"));
+
+		awtDialogs[4].add(new Label("Hotkeys"));
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(new Label("(Ctrl + *)"));
+
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(new Label(""));
+
+		awtDialogs[4].add(new Label("Fast-Forward"));
+		awtDialogs[4].add(new Label("Screenshot"));
+		awtDialogs[4].add(new Label("Pause/Resume"));
+
+		awtDialogs[4].add(inputButtons[19]);
+		awtDialogs[4].add(inputButtons[20]);
+		awtDialogs[4].add(inputButtons[21]);
+
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(new Label(""));
+
+		awtDialogs[4].add(new Label("Slowdown"));
+		awtDialogs[4].add(new Label("TODO"));
+		awtDialogs[4].add(new Label("TODO"));
+
+		awtDialogs[4].add(new Label("TODO"));
+		awtDialogs[4].add(new Label(""));
+		awtDialogs[4].add(new Label(""));
 
 
 		awtDialogs[3].setBackground(FreeJ2ME.freeJ2MEBGColor);
@@ -503,7 +495,6 @@ public final class AWTGUI
 		showPlayer.addActionListener(menuItemListener);
 
 		addInputButtonListeners();
-		addGamepadButtonListeners();
 
 		setActionListeners();
 
@@ -549,114 +540,6 @@ public final class AWTGUI
 				@Override
 				public void focusLost(FocusEvent e) { if(!keySet) { focusedButton.setLabel(lastButtonKey); } }
             });
-		}
-	}
-
-	private void addGamepadButtonListeners() {
-		for (int i = 0; i < gamepadInputButtons.length; i++) {
-			final int buttonIndex = i;
-			gamepadInputButtons[i].addActionListener(new ActionListener() {
-				public void actionPerformed(ActionEvent e) {
-					if (activeGamepadBindingButtonIndex != -1 && activeGamepadBindingButtonIndex != buttonIndex) {
-						// Another gamepad button was already waiting, restore its label
-						gamepadInputButtons[activeGamepadBindingButtonIndex].setLabel(
-							newGamepadBindings.getOrDefault("input_" + actionKeys[activeGamepadBindingButtonIndex] + "_Gamepad", "GP: None")
-						);
-						if (gamepadInputButtons[activeGamepadBindingButtonIndex].getLabel().isEmpty() || gamepadInputButtons[activeGamepadBindingButtonIndex].getLabel().equals("GP: ")) {
-							gamepadInputButtons[activeGamepadBindingButtonIndex].setLabel("GP: None");
-						}
-					}
-
-					if (activeGamepadBindingButtonIndex == buttonIndex) { // Clicked again on the button that was waiting
-						stopGamepadPolling = true;
-						if (gamepadPollingThread != null && gamepadPollingThread.isAlive()) {
-							try { gamepadPollingThread.join(100); } catch (InterruptedException ignored) {}
-						}
-						gamepadInputButtons[buttonIndex].setLabel(
-							newGamepadBindings.getOrDefault("input_" + actionKeys[buttonIndex] + "_Gamepad", "GP: None")
-						);
-						if (gamepadInputButtons[buttonIndex].getLabel().isEmpty() || gamepadInputButtons[buttonIndex].getLabel().equals("GP: ")) {
-							gamepadInputButtons[buttonIndex].setLabel("GP: None");
-						}
-						activeGamepadBindingButtonIndex = -1;
-						return;
-					}
-
-					activeGamepadBindingButtonIndex = buttonIndex;
-					gamepadInputButtons[buttonIndex].setLabel("Waiting GP...");
-					stopGamepadPolling = false;
-
-					gamepadPollingThread = new Thread(new Runnable() {
-						public void run() {
-							long startTime = System.currentTimeMillis();
-							String detectedBinding = "";
-
-							while (!stopGamepadPolling && (System.currentTimeMillis() - startTime) < 5000) { // 5-second timeout
-								SdlJoystick.SDL_JoystickUpdate();
-								if (joysticks.isEmpty()) {
-									break;
-								}
-								SDL_Joystick joystick = joysticks.get(0); // Use the handle type
-
-								// Check Hats (D-Pad)
-								for (int hatIdx = 0; hatIdx < SdlJoystick.SDL_JoystickNumHats(joystick); hatIdx++) {
-									byte hatState = SdlJoystick.SDL_JoystickGetHat(joystick, hatIdx);
-									if (hatState != SdlJoystickConst.SDL_HAT_CENTERED) {
-										if ((hatState & SdlJoystickConst.SDL_HAT_UP) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_UP";
-										else if ((hatState & SdlJoystickConst.SDL_HAT_DOWN) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_DOWN";
-										else if ((hatState & SdlJoystickConst.SDL_HAT_LEFT) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_LEFT";
-										else if ((hatState & SdlJoystickConst.SDL_HAT_RIGHT) != 0) detectedBinding = "GP0_HAT" + hatIdx + "_RIGHT";
-										stopGamepadPolling = true; break;
-									}
-								}
-								if (stopGamepadPolling) break;
-
-								// Check Buttons
-								for (int btnIdx = 0; btnIdx < SdlJoystick.SDL_JoystickNumButtons(joystick); btnIdx++) {
-									if (SdlJoystick.SDL_JoystickGetButton(joystick, btnIdx) == 1) {
-										detectedBinding = "GP0_BUTTON_" + btnIdx;
-										stopGamepadPolling = true; break;
-									}
-								}
-								if (stopGamepadPolling) break;
-
-								// Check Axes
-								for (int axisIdx = 0; axisIdx < SdlJoystick.SDL_JoystickNumAxes(joystick); axisIdx++) {
-									short axisValue = SdlJoystick.SDL_JoystickGetAxis(joystick, axisIdx);
-									if (axisValue > AXIS_DEADZONE_THRESHOLD) {
-										detectedBinding = "GP0_AXIS_" + axisIdx + "_POS";
-										stopGamepadPolling = true; break;
-									} else if (axisValue < -AXIS_DEADZONE_THRESHOLD) {
-										detectedBinding = "GP0_AXIS_" + axisIdx + "_NEG";
-										stopGamepadPolling = true; break;
-									}
-								}
-								if (stopGamepadPolling) break;
-								try { Thread.sleep(50); } catch (InterruptedException ignored) {}
-							}
-
-							final String finalBinding = detectedBinding;
-							java.awt.EventQueue.invokeLater(new Runnable() {
-								public void run() {
-									if (activeGamepadBindingButtonIndex == buttonIndex) { // Check if still the active button
-										if (!finalBinding.isEmpty()) {
-											gamepadInputButtons[buttonIndex].setLabel("GP: " + finalBinding);
-											newGamepadBindings.put("input_" + actionKeys[buttonIndex] + "_Gamepad", finalBinding);
-										} else {
-											// Timeout or no input, restore previous or "GP: None"
-											String previousBinding = newGamepadBindings.getOrDefault("input_" + actionKeys[buttonIndex] + "_Gamepad", "");
-											gamepadInputButtons[buttonIndex].setLabel(previousBinding.isEmpty() ? "GP: None" : "GP: " + previousBinding);
-										}
-										activeGamepadBindingButtonIndex = -1; // Reset active button
-									}
-								}
-							});
-						}
-					});
-					gamepadPollingThread.setDaemon(true);
-					gamepadPollingThread.start();
-				}
-			});
 		}
 	}
 
@@ -1089,8 +972,7 @@ public final class AWTGUI
 			deleteTemporaryKJXFiles.setState(config.sysSettings.get("deleteTempKJXFiles").equals("on"));
 
 			// Get saved inputs from system config file.
-			this.inputKeycodes = config.getInputKeycodes();
-			this.newInputKeycodes = Arrays.copyOf(this.inputKeycodes, this.inputKeycodes.length); // Keep temporary copy in sync
+			inputKeycodes = config.inputKeycodes;
 			for(int i = 0; i < inputButtons.length; i++) { inputButtons[i].setLabel(KeyEvent.getKeyText(inputKeycodes[i])); }
 			
 			/* We only need to do this call once, when the jar first loads */
@@ -1150,7 +1032,7 @@ public final class AWTGUI
 
 			// else if(a.getActionCommand() == "Exit") { System.exit(0); }
 
-			else if(a.getActionCommand() == "Exit") { cleanupJoysticks(); Mobile.getPlatform().stopApp(); main.dispose(); }
+			else if(a.getActionCommand() == "Exit") { Mobile.getPlatform().stopApp(); main.dispose(); }
 
 			else if(a.getActionCommand() == "AboutMenu") { awtDialogs[1].setLocationRelativeTo(main); awtDialogs[1].setVisible(true); }
 
@@ -1173,46 +1055,16 @@ public final class AWTGUI
 			else if (a.getActionCommand() == "CancelResChange") { awtDialogs[0].setVisible(false); }
 
 			// else if(a.getActionCommand() == "CloseFreeJ2ME") { System.exit(0); }
-			else if(a.getActionCommand() == "CloseFreeJ2ME") { cleanupJoysticks(); Mobile.getPlatform().stopApp(); main.dispose(); }
+			else if(a.getActionCommand() == "CloseFreeJ2ME") { Mobile.getPlatform().stopApp(); main.dispose(); }
 
 			else if(a.getActionCommand() == "RestartLater") { awtDialogs[3].setVisible(false); }
 
-			else if(a.getActionCommand() == "MapInputs") {
-				// Populate Gamepad Button Labels and clear temporary bindings
-				newGamepadBindings.clear();
-				for (int i = 0; i < actionKeys.length; i++) {
-					String gamepadBinding = config.sysSettings.get("input_" + actionKeys[i] + "_Gamepad");
-					if (gamepadBinding != null && !gamepadBinding.isEmpty()) {
-						gamepadInputButtons[i].setLabel("GP: " + gamepadBinding);
-						newGamepadBindings.put("input_" + actionKeys[i] + "_Gamepad", gamepadBinding); // Store initial binding
-					} else {
-						gamepadInputButtons[i].setLabel("GP: None");
-						newGamepadBindings.put("input_" + actionKeys[i] + "_Gamepad", ""); // Store empty binding
-					}
-				}
-				// Also ensure keyboard buttons are up-to-date with current config
-				AWTGUI.this.inputKeycodes = config.getInputKeycodes(); // Refresh from config
-				System.arraycopy(AWTGUI.this.inputKeycodes, 0, AWTGUI.this.newInputKeycodes, 0, AWTGUI.this.newInputKeycodes.length); // Sync temp copy
-				for(int i = 0; i < inputButtons.length; i++) {
-					if (i < AWTGUI.this.inputKeycodes.length) { // Added boundary check for robustness
-						inputButtons[i].setLabel(KeyEvent.getKeyText(AWTGUI.this.inputKeycodes[i]));
-					}
-				}
-				awtDialogs[4].setVisible(true);
-			}
+			else if(a.getActionCommand() == "MapInputs") { awtDialogs[4].setVisible(true); }
 
 			else if(a.getActionCommand() == "ApplyInputs") 
 			{
-				// Update local AWTGUI's working copy for keyboard
-				System.arraycopy(AWTGUI.this.newInputKeycodes, 0, AWTGUI.this.inputKeycodes, 0, AWTGUI.this.inputKeycodes.length);
-				// Update Config's master copy for keyboard
-				config.setInputKeycodes(AWTGUI.this.newInputKeycodes); // This should call config.updateAWTInputs() internally
-
-				// Save Gamepad Bindings from our temporary map
-				for (java.util.Map.Entry<String, String> entry : newGamepadBindings.entrySet()) {
-					config.sysSettings.put(entry.getKey(), entry.getValue());
-				}
-				config.saveConfig(); // Save changes to sysSettings (including gamepad)
+				System.arraycopy(newInputKeycodes, 0, inputKeycodes, 0, inputKeycodes.length);
+				config.updateAWTInputs();
 				awtDialogs[4].setVisible(false); 
 			}
 
@@ -1248,162 +1100,4 @@ public final class AWTGUI
 	public String getJarPath() { return jarfile; }
 
 	public boolean hasJustLoaded() { return firstLoad; }
-
-	public void cleanupJoysticks() {
-		for (SDL_Joystick joystick : joysticks) { // Use the handle type
-			SdlJoystick.SDL_JoystickClose(joystick);
-		}
-		joysticks.clear();
-		Sdl.SDL_QuitSubSystem(SdlSubSystemConst.SDL_INIT_JOYSTICK); // Keep SDL_ prefix for Sdl methods too
-		Mobile.log(Mobile.LOG_INFO, "SDL joystick subsystem cleaned up.");
-	}
-
-	public void initActionToKeyboardKeyCodeMap() {
-		actionToKeyboardKeyCodeMap.clear();
-		int[] currentKeycodes = config.getInputKeycodes(); // Get current keyboard mappings
-		if (currentKeycodes.length != actionKeys.length) {
-			Mobile.log(Mobile.LOG_ERROR, "AWTGUI: Mismatch between actionKeys and inputKeycodes length. Cannot map actions to keycodes.");
-			return;
-		}
-		for (int i = 0; i < actionKeys.length; i++) {
-			actionToKeyboardKeyCodeMap.put("input_" + actionKeys[i], currentKeycodes[i]);
-		}
-	}
-
-	public void processGamepadInput(Component eventSource) {
-        System.out.println("DEBUG_GP_ENTRY: processGamepadInput ENTERED");
-
-		if (joysticks == null || joysticks.isEmpty()) {
-            System.out.println("DEBUG_GP_ENTRY: processGamepadInput EXIT - joysticks list is null or empty.");
-			return;
-		}
-		if (config == null || config.sysSettings == null) {
-			System.err.println("DEBUG_GP_ENTRY: processGamepadInput EXIT - Config or sysSettings is null.");
-			return;
-		}
-        // Assuming initActionToKeyboardKeyCodeMap() is called if map is empty,
-        // and it would log if it's still empty.
-		if (actionToKeyboardKeyCodeMap == null || actionToKeyboardKeyCodeMap.isEmpty()) {
-			initActionToKeyboardKeyCodeMap();
-			if (actionToKeyboardKeyCodeMap.isEmpty()){
-				 System.err.println("DEBUG_GP_ENTRY: processGamepadInput EXIT - actionToKeyboardKeyCodeMap is STILL EMPTY after re-init.");
-				 return;
-			}
-		}
-
-		// Assuming we are using the first joystick
-		io.github.libsdl4j.api.joystick.SDL_Joystick joystick = joysticks.get(0); // Assuming at least one, given prior checks
-		if (joystick == null) {
-			System.err.println("DEBUG_GP_ENTRY: processGamepadInput EXIT - Joystick object at index 0 is null.");
-			return;
-		}
-        System.out.println("DEBUG_GP_ENTRY: processGamepadInput PASSED INITIAL CHECKS. Joystick name: " + io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickName(joystick));
-
-		// Update joystick states
-		io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickUpdate();
-		// System.out.println("DEBUG_GP: SDL_JoystickUpdate() called."); // Optional: spammy
-
-        if (actionKeys == null || actionKeys.length == 0) {
-            System.err.println("DEBUG_GP: actionKeys array is null or empty! Cannot process specific input bindings.");
-            return;
-        }
-        System.out.println("DEBUG_GP: Processing " + actionKeys.length + " actionKeys. First actionKey: " + (actionKeys.length > 0 ? actionKeys[0] : "N/A"));
-
-		for (String actionKeyBase : actionKeys) { // actionKeys should be {"LeftSoft", "RightSoft", ...}
-			String actionGamepadConfigKey = "input_" + actionKeyBase + "_Gamepad";
-			String gamepadBindingString = config.sysSettings.get(actionGamepadConfigKey);
-
-			if (gamepadBindingString == null || gamepadBindingString.isEmpty()) {
-				// System.out.println("DEBUG_GP: No gamepad binding for action: " + actionKeyBase); // Optional: spammy
-				continue;
-			}
-
-			// System.out.println("DEBUG_GP: Action: " + actionKeyBase + ", Binding: " + gamepadBindingString); // Optional: spammy
-
-			boolean currentState = false;
-			String[] parts = gamepadBindingString.split("_"); // GP0_BUTTON_1, GP0_HAT_0_UP, GP0_AXIS_0_POS
-
-			if (parts.length < 3) {
-				System.err.println("DEBUG_GP: Invalid binding string format: " + gamepadBindingString + " for action " + actionKeyBase);
-				continue;
-			}
-
-			// int gpIndex = Integer.parseInt(parts[0].substring(2)); // Assuming "GP0" -> 0, currently hardcoded to use joysticks.get(0)
-
-			try {
-				String type = parts[1];
-				int index = Integer.parseInt(parts[2]);
-
-				if ("BUTTON".equals(type)) {
-					if (parts.length == 3) { // GP0_BUTTON_1
-						byte buttonState = io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickGetButton(joystick, index);
-						currentState = (buttonState == 1);
-						// System.out.println("DEBUG_GP:  Button " + index + " state: " + buttonState); // Optional
-					}
-				} else if ("HAT".equals(type)) { // GP0_HAT_0_UP
-					if (parts.length == 4) {
-						byte hatState = io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickGetHat(joystick, index);
-						String direction = parts[3];
-						if ("UP".equals(direction)) currentState = (hatState == io.github.libsdl4j.api.joystick.SdlJoystickConst.SDL_HAT_UP);
-						else if ("DOWN".equals(direction)) currentState = (hatState == io.github.libsdl4j.api.joystick.SdlJoystickConst.SDL_HAT_DOWN);
-						else if ("LEFT".equals(direction)) currentState = (hatState == io.github.libsdl4j.api.joystick.SdlJoystickConst.SDL_HAT_LEFT);
-						else if ("RIGHT".equals(direction)) currentState = (hatState == io.github.libsdl4j.api.joystick.SdlJoystickConst.SDL_HAT_RIGHT);
-						// System.out.println("DEBUG_GP:  Hat " + index + " state: " + hatState + ", Checking for: " + direction); // Optional
-					}
-				} else if ("AXIS".equals(type)) { // GP0_AXIS_0_POS
-					if (parts.length == 4) {
-						short axisValue = io.github.libsdl4j.api.joystick.SdlJoystick.SDL_JoystickGetAxis(joystick, index);
-						String direction = parts[3];
-						if ("POS".equals(direction)) currentState = (axisValue > AXIS_DEADZONE_THRESHOLD);
-						else if ("NEG".equals(direction)) currentState = (axisValue < -AXIS_DEADZONE_THRESHOLD);
-						// System.out.println("DEBUG_GP:  Axis " + index + " value: " + axisValue + ", Checking for: " + direction); // Optional
-					}
-				}
-			} catch (NumberFormatException e) {
-				System.err.println("DEBUG_GP: Error parsing index for binding: " + gamepadBindingString + " - " + e.getMessage());
-				continue;
-			} catch (Throwable t) { // Catch any other unexpected errors from SDL calls for this binding
-				System.err.println("DEBUG_GP: Unexpected error processing binding " + gamepadBindingString + ": " + t.getMessage());
-				t.printStackTrace();
-				continue;
-			}
-
-			boolean prevState = previousGamepadInputStates.getOrDefault(gamepadBindingString, false);
-
-			if (currentState != prevState) {
-				System.out.println("DEBUG_GP: State change for " + actionKeyBase + " (" + gamepadBindingString + "): " + (currentState ? "PRESSED" : "RELEASED"));
-				previousGamepadInputStates.put(gamepadBindingString, currentState);
-
-				Integer keyboardKeyCode = actionToKeyboardKeyCodeMap.get("input_" + actionKeyBase); // ensure using "input_" prefix as in initActionToKeyboardKeyCodeMap
-				if (keyboardKeyCode != null) {
-					int actionIndex = -1;
-					for (int i = 0; i < AWTGUI.this.inputKeycodes.length; i++) {
-						if (AWTGUI.this.inputKeycodes[i] == keyboardKeyCode) { // Use object equality for Integer if it was Integer object, but VK_ codes are primitive ints.
-							actionIndex = i;
-							break;
-						}
-					}
-
-					if (actionIndex != -1) {
-						int canvasKeycode = Mobile.convertAWTKeycode(actionIndex);
-
-						if (canvasKeycode != 0 && canvasKeycode != Integer.MIN_VALUE) {
-							if (currentState) {
-								Mobile.getPlatform().keyPressed(canvasKeycode);
-							} else {
-								Mobile.getPlatform().keyReleased(canvasKeycode);
-							}
-							System.out.println("DEBUG_GP: Dispatching KeyEvent for " + actionKeyBase + " (Canvas Key: " + canvasKeycode + "): Type=" + (currentState ? "PRESS" : "RELEASE"));
-						} else {
-							System.err.println("DEBUG_GP: Invalid Canvas keycode for action " + actionKeyBase + " (AWT VK: " + keyboardKeyCode + ", ActionIndex: " + actionIndex + ")");
-						}
-					} else {
-						System.err.println("DEBUG_GP: Could not find actionIndex for AWT VK: " + keyboardKeyCode + " for action " + actionKeyBase);
-					}
-				} else {
-					System.err.println("DEBUG_GP: No keyboard key code mapping found for action: " + actionKeyBase);
-				}
-			}
-		}
-	}
 }

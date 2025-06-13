@@ -7,13 +7,10 @@ import java.awt.dnd.*;
 import java.awt.datatransfer.*;
 import java.awt.event.*;
 import java.io.File;
-import java.io.InputStream; // For manual extraction
-import java.io.IOException;
-import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path; // For manual extraction
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,86 +36,6 @@ public class Main {
     private static JPopupMenu gameListContextMenu; // New
 
     public static void main(String[] args) {
-        System.setProperty("jna.debug_load", "true");
-        System.setProperty("jna.debug_load.jna", "true");
-
-        String resourcePath = "com/sun/jna/platform/win32-x86-64/SDL2.dll";
-        URL sdlResourceUrl = com.prakhar.j2mepcemu.Main.class.getClassLoader().getResource(resourcePath);
-
-        if (sdlResourceUrl != null) {
-            System.out.println("JNA Manual Extract: Resource found by ClassLoader: " + sdlResourceUrl.toExternalForm());
-            try {
-                // Create a temporary directory for the native library
-                Path tempDir = Files.createTempDirectory("jna-sdl-natives-");
-                File tempDirFile = tempDir.toFile();
-                tempDirFile.deleteOnExit(); // Request deletion of directory on JVM exit
-
-                File nativeLibFile = new File(tempDirFile, "SDL2.dll");
-                nativeLibFile.deleteOnExit(); // Request deletion of file on JVM exit
-
-                try (InputStream in = sdlResourceUrl.openStream()) {
-                    Files.copy(in, nativeLibFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                }
-
-                System.out.println("JNA Manual Extract: Extracted SDL2.dll to: " + nativeLibFile.getAbsolutePath());
-                System.setProperty("jna.library.path", tempDirFile.getAbsolutePath());
-                System.out.println("JNA Manual Extract: Set jna.library.path to: " + tempDirFile.getAbsolutePath());
-
-                // Add a shutdown hook to attempt more robust cleanup of the directory
-                // This is a best-effort, as deleteOnExit might not always clean directories.
-                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                    try {
-                        Files.deleteIfExists(nativeLibFile.toPath());
-                        Files.deleteIfExists(tempDir); // Try deleting directory
-                        System.out.println("JNA Manual Extract: Cleaned up temporary native files.");
-                    } catch (IOException e) {
-                        System.err.println("JNA Manual Extract: Error cleaning up temporary native files: " + e.getMessage());
-                    }
-                }));
-
-            } catch (IOException e) {
-                System.err.println("JNA Manual Extract: Error extracting SDL2.dll: " + e.getMessage());
-                e.printStackTrace(); // Print stack trace for detailed error
-            }
-        } else {
-            System.err.println("JNA Manual Extract: SDL2.dll resource NOT FOUND by ClassLoader: " + resourcePath);
-        }
-        // End Manual Extraction Logic
-
-        // String projectRoot = System.getProperty("user.dir");
-        // // Path to the resources directory within the emu-core module source
-        // // JNA expects the com/sun/jna/platform structure *within* this path.
-        // String nativeSourceResourcePath = projectRoot + java.io.File.separator + "emu-core" + java.io.File.separator + "src" + java.io.File.separator + "main" + java.io.File.separator + "resources";
-
-        // // Path to where Gradle/IDE might place resources during build/run from IDE
-        // String nativeBuildResourcePath = projectRoot + java.io.File.separator + "emu-core" + java.io.File.separator + "build" + java.io.File.separator + "resources" + java.io.File.separator + "main";
-
-        // java.io.File nativeBuildResourceDir = new java.io.File(nativeBuildResourcePath);
-        // java.io.File nativeSourceResourceDir = new java.io.File(nativeSourceResourcePath);
-
-        // String effectiveNativePath = "";
-
-        // if (nativeBuildResourceDir.exists() && nativeBuildResourceDir.isDirectory()) {
-        //     effectiveNativePath = nativeBuildResourceDir.getAbsolutePath();
-        //     System.out.println("JNA Debug: Using build resource path: " + effectiveNativePath);
-        // } else if (nativeSourceResourceDir.exists() && nativeSourceResourceDir.isDirectory()) {
-        //     effectiveNativePath = nativeSourceResourceDir.getAbsolutePath();
-        //     System.out.println("JNA Debug: Using source resource path: " + effectiveNativePath);
-        // } else {
-        //     // Fallback or log error if neither path is found, though one should exist.
-        //     // For now, JNA will rely on classpath search if this is empty or invalid.
-        //     System.err.println("JNA Debug: Neither build nor source resource path found for jna.library.path. User dir: " + projectRoot);
-        //     System.err.println("JNA Debug: Checked build path: " + nativeBuildResourcePath + " (exists: " + nativeBuildResourceDir.exists() + ")");
-        //     System.err.println("JNA Debug: Checked source path: " + nativeSourceResourcePath + " (exists: " + nativeSourceResourceDir.exists() + ")");
-        // }
-
-        // if (!effectiveNativePath.isEmpty()) {
-        //     System.out.println("JNA Debug: Setting jna.library.path to: " + effectiveNativePath);
-        //     System.setProperty("jna.library.path", effectiveNativePath);
-        // } else {
-        //     System.out.println("JNA Debug: jna.library.path not set as no effective path was determined.");
-        // }
-
         SwingUtilities.invokeLater(() -> createAndShowGUI());
     }
 

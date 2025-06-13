@@ -933,21 +933,6 @@ public class FreeJ2ME
 					if (lcd != null) {
 						lcd.repaint();
 					}
-
-					// Process gamepad input
-					if (awtGUI != null && lcd != null) {
-						if (awtGUI.hasLoadedFile()) {
-							// System.out.println("DEBUG_GP_CALL: Calling processGamepadInput..."); // Optional: can be spammy
-							awtGUI.processGamepadInput(lcd);
-						} else {
-							System.out.println("DEBUG_GP_CALL: SKIPPING processGamepadInput because awtGui.hasLoadedFile() is false.");
-						}
-					} else {
-						if (awtGUI == null) System.out.println("DEBUG_GP_CALL: SKIPPING processGamepadInput because awtGui is null.");
-						if (lcd == null) System.out.println("DEBUG_GP_CALL: SKIPPING processGamepadInput because lcd is null.");
-						// Added a combined check for clarity
-						if (awtGUI == null || lcd == null) System.out.println("DEBUG_GP_CALL: SKIPPING processGamepadInput due to awtGui or lcd being null.");
-					}
 				}
 			});
 
