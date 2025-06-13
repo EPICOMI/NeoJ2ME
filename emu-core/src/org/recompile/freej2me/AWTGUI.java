@@ -40,6 +40,12 @@ import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyAdapter;
 
+import net.java.games.input.Component;
+import net.java.games.input.Controller; // If needed for type casting or direct use
+import java.util.Timer; // For polling
+import java.util.TimerTask; // For polling
+// Add other necessary JInput imports if direct component access is done here
+
 import java.io.File;
 import java.io.FilenameFilter;
 
@@ -66,6 +72,9 @@ public final class AWTGUI
 
 	/* And this is meant to be a local reference of FreeJ2ME's config */
 	private Config config;
+
+	private GamepadManager gamepadManager;
+	private Timer gamepadPollingTimer;
 
 	/* AWT's main MenuBar */
 	final MenuBar menuBar = new MenuBar();
@@ -280,6 +289,17 @@ public final class AWTGUI
 	public AWTGUI(Config config)
 	{
 		this.config = config;
+
+        // ... existing initializations ...
+
+        this.gamepadManager = new GamepadManager();
+        if (!gamepadManager.getDetectedGamepads().isEmpty()) {
+            gamepadManager.selectGamepad(0); // Select the first gamepad by default
+            startGamepadPolling();
+        } else {
+            System.out.println("AWTGUI: No gamepads detected by GamepadManager.");
+            // Optionally log using Mobile.log if available and integrated
+        }
 
 		resChoice.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 14));
 		totalMemLabel.setFont(new Font(Font.MONOSPACED, Font.BOLD, 15));
@@ -1100,4 +1120,74 @@ public final class AWTGUI
 	public String getJarPath() { return jarfile; }
 
 	public boolean hasJustLoaded() { return firstLoad; }
+
+    private void startGamepadPolling() {
+        if (gamepadPollingTimer != null) {
+            gamepadPollingTimer.cancel();
+        }
+        gamepadPollingTimer = new Timer("GamepadPollingThread", true); // Daemon thread
+        gamepadPollingTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                if (gamepadManager != null && gamepadManager.getSelectedGamepad() != null) {
+                    Controller currentPad = gamepadManager.getSelectedGamepad();
+                    currentPad.poll(); // Essential: updates component states
+
+                    // --- Basic D-Pad to Arrow Key Mapping (Example) ---
+                    // This is a simplified example. A robust solution needs configurable mappings
+                    // and handling for different component IDs for D-Pads/Hats.
+
+                    // Assuming a common POV Hat for D-Pad
+                    Component pov = currentPad.getComponent(Component.Identifier.Axis.POV);
+                    if (pov != null) {
+                        float povValue = pov.getPollData();
+                        if (povValue == Component.POV.UP) {
+                            simulateKeyPress(KeyEvent.VK_UP);
+                        } else if (povValue == Component.POV.DOWN) {
+                            simulateKeyPress(KeyEvent.VK_DOWN);
+                        } else if (povValue == Component.POV.LEFT) {
+                            simulateKeyPress(KeyEvent.VK_LEFT);
+                        } else if (povValue == Component.POV.RIGHT) {
+                            simulateKeyPress(KeyEvent.VK_RIGHT);
+                        } else {
+                            // Optional: Simulate key release if buttons were previously pressed
+                            // This needs state tracking for each key (e.g., isDPadUpPressed)
+                            // For simplicity, this example doesn't include key release for POV center.
+                        }
+                    }
+
+                    // --- Basic Button to Enter/Fire Key Mapping (Example) ---
+                    // Assuming Button 0 is a common action button (e.g., A or X)
+                    Component actionButton = currentPad.getComponent(Component.Identifier.Button._0); // Or Button.A, etc.
+                    if (actionButton != null && actionButton.getPollData() == 1.0f) { // Button pressed
+                        simulateKeyPress(KeyEvent.VK_ENTER); // Or config.inputKeycodes[4] for FIRE
+                    } else {
+                        // Optional: Simulate key release if button was previously pressed
+                    }
+
+                    // Add more button/axis mappings here as needed.
+                    // This section will become more complex with configurable mappings.
+                }
+            }
+        }, 0, 50); // Poll every 50ms (20 FPS) - adjust as needed
+        System.out.println("AWTGUI: Gamepad polling started for: " + gamepadManager.getSelectedGamepad().getName());
+    }
+
+    private void simulateKeyPress(int keyCode) {
+        if (main == null || !main.isFocused()) {
+            // Only dispatch if the window is active, or consider dispatching anyway
+            // depending on desired behavior when window is not focused.
+            // return;
+        }
+        // System.out.println("Simulating VK_PRESS: " + keyCode);
+        // Create and dispatch KEY_PRESSED event
+        KeyEvent pressEvent = new KeyEvent(main, KeyEvent.KEY_PRESSED, System.currentTimeMillis(), 0, keyCode, KeyEvent.getKeyChar(keyCode));
+        main.dispatchEvent(pressEvent);
+
+        // Create and dispatch KEY_RELEASED event shortly after
+        // This is a simplification. True stateful key press/release is better.
+        // For real games, you'd want to track button state and only send release when the gamepad button is actually released.
+        KeyEvent releaseEvent = new KeyEvent(main, KeyEvent.KEY_RELEASED, System.currentTimeMillis() + 50, 0, keyCode, KeyEvent.getKeyChar(keyCode)); // 50ms delay for release
+        main.dispatchEvent(releaseEvent);
+    }
 }

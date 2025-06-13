@@ -16,6 +16,7 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     implementation project(':emu-core')
+    implementation 'net.java.jinput:jinput:2.0.9'
 }
 
 test {
