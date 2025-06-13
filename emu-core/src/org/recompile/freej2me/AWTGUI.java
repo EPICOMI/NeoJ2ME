@@ -1181,13 +1181,13 @@ public final class AWTGUI
         }
         // System.out.println("Simulating VK_PRESS: " + keyCode);
         // Create and dispatch KEY_PRESSED event
-        KeyEvent pressEvent = new KeyEvent(main, KeyEvent.KEY_PRESSED, System.currentTimeMillis(), 0, keyCode, KeyEvent.getKeyChar(keyCode));
+        KeyEvent pressEvent = new KeyEvent(main, KeyEvent.KEY_PRESSED, System.currentTimeMillis(), 0, keyCode, KeyEvent.CHAR_UNDEFINED);
         main.dispatchEvent(pressEvent);
 
         // Create and dispatch KEY_RELEASED event shortly after
         // This is a simplification. True stateful key press/release is better.
         // For real games, you'd want to track button state and only send release when the gamepad button is actually released.
-        KeyEvent releaseEvent = new KeyEvent(main, KeyEvent.KEY_RELEASED, System.currentTimeMillis() + 50, 0, keyCode, KeyEvent.getKeyChar(keyCode)); // 50ms delay for release
+        KeyEvent releaseEvent = new KeyEvent(main, KeyEvent.KEY_RELEASED, System.currentTimeMillis() + 50, 0, keyCode, KeyEvent.CHAR_UNDEFINED); // 50ms delay for release
         main.dispatchEvent(releaseEvent);
     }
 }
