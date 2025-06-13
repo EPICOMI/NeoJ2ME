@@ -38,5 +38,11 @@ project(':emu-core') {
         implementation 'net.java.jinput:jinput-platform:2.0.9:natives-windows'
         implementation 'net.java.jinput:jinput-platform:2.0.9:natives-linux'
         implementation 'net.java.jinput:jinput-platform:2.0.9:natives-osx'
+
+        // Make sure other necessary dependencies for emu-core are listed here
+        // For example, if jna and libsdl4j are not automatically picked up from lib:
+        implementation files('lib/jna-5.15.0.jar')
+        implementation files('lib/jna-platform-5.15.0.jar')
+        implementation files('lib/libsdl4j-2.24.0-1.0_mini.jar')
     }
 }
