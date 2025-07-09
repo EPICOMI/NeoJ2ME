@@ -16,6 +16,11 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     implementation project(':emu-core')
+    implementation 'net.java.dev.jna:jna:5.15.0'
+    implementation 'net.java.dev.jna:jna-platform:5.15.0'
+    implementation files('emu-core/lib/libsdl4j.jar')
+    implementation files('emu-core/lib/libsdl4j-2.24.0-1.0_mini.jar')
+    implementation 'io.github.libsdl4j:libsdl4j:2.24.0-1.0'
 }
 
 test {
@@ -31,3 +36,9 @@ subprojects {
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
 }
+
+task copyNativeLibs(type: Copy) {
+    from 'emu-core/lib/SDL2.dll'
+    into 'build/libs'
+}
+build.dependsOn copyNativeLibs
