@@ -83,6 +83,9 @@ public class Config
 
 	public HashMap<String, String> settings = new HashMap<String, String>(4);
 	public HashMap<String, String> sysSettings = new HashMap<String, String>(4);
+	// Structure: J2ME Action (String, e.g., "UP", "FIRE") -> List of GamepadInput (e.g., ["gp0_button_0", "gp1_axis_1_neg"])
+	public HashMap<String, List<String>> gamepadKeyMappings = new HashMap<>();
+
 
 	public Config()
 	{
@@ -98,6 +101,41 @@ public class Config
 			}
 		};
 	}
+
+	// Define J2ME action names, mapping to the roles in existing inputKeycodes
+	public static final String J2ME_ACTION_LEFT_SOFT = "LeftSoft";
+	public static final String J2ME_ACTION_RIGHT_SOFT = "RightSoft";
+	public static final String J2ME_ACTION_UP = "ArrowUp";
+	public static final String J2ME_ACTION_LEFT = "ArrowLeft";
+	public static final String J2ME_ACTION_FIRE = "Fire";
+	public static final String J2ME_ACTION_RIGHT = "ArrowRight";
+	public static final String J2ME_ACTION_DOWN = "ArrowDown";
+	public static final String J2ME_ACTION_NUM7 = "Num7";
+	public static final String J2ME_ACTION_NUM8 = "Num8";
+	public static final String J2ME_ACTION_NUM9 = "Num9";
+	public static final String J2ME_ACTION_NUM4 = "Num4";
+	public static final String J2ME_ACTION_NUM5 = "Num5";
+	public static final String J2ME_ACTION_NUM6 = "Num6";
+	public static final String J2ME_ACTION_NUM1 = "Num1";
+	public static final String J2ME_ACTION_NUM2 = "Num2";
+	public static final String J2ME_ACTION_NUM3 = "Num3";
+	public static final String J2ME_ACTION_STAR = "Star";
+	public static final String J2ME_ACTION_NUM0 = "Num0";
+	public static final String J2ME_ACTION_POUND = "Pound";
+	// Emulator specific hotkeys, might also be mappable to gamepad
+	public static final String J2ME_ACTION_FAST_FORWARD = "FastForward";
+	public static final String J2ME_ACTION_SCREENSHOT = "Screenshot";
+	public static final String J2ME_ACTION_PAUSE_RESUME = "PauseResume";
+
+	public static final String[] ALL_J2ME_ACTIONS = {
+			J2ME_ACTION_LEFT_SOFT, J2ME_ACTION_RIGHT_SOFT, J2ME_ACTION_UP, J2ME_ACTION_LEFT,
+			J2ME_ACTION_FIRE, J2ME_ACTION_RIGHT, J2ME_ACTION_DOWN, J2ME_ACTION_NUM7,
+			J2ME_ACTION_NUM8, J2ME_ACTION_NUM9, J2ME_ACTION_NUM4, J2ME_ACTION_NUM5,
+			J2ME_ACTION_NUM6, J2ME_ACTION_NUM1, J2ME_ACTION_NUM2, J2ME_ACTION_NUM3,
+			J2ME_ACTION_STAR, J2ME_ACTION_NUM0, J2ME_ACTION_POUND,
+			J2ME_ACTION_FAST_FORWARD, J2ME_ACTION_SCREENSHOT, J2ME_ACTION_PAUSE_RESUME
+	};
+
 
 	public void init()
 	{
@@ -243,6 +281,7 @@ public class Config
 			if(!sysSettings.containsKey("input_Screenshot"))  { sysSettings.put("input_Screenshot", ""   + inputKeycodes[20]); }
 			if(!sysSettings.containsKey("input_PauseResume")) { sysSettings.put("input_PauseResume", ""  + inputKeycodes[21]); }
 
+			// Load Keyboard keycodes
 			inputKeycodes[0] = Integer.parseInt(sysSettings.get("input_LeftSoft"));
 			inputKeycodes[1] = Integer.parseInt(sysSettings.get("input_RightSoft"));
 			inputKeycodes[2] = Integer.parseInt(sysSettings.get("input_ArrowUp"));
@@ -265,6 +304,24 @@ public class Config
 			inputKeycodes[19] = Integer.parseInt(sysSettings.get("input_FastForward"));
 			inputKeycodes[20] = Integer.parseInt(sysSettings.get("input_Screenshot"));
 			inputKeycodes[21] = Integer.parseInt(sysSettings.get("input_PauseResume"));
+
+			// Load Gamepad Mappings
+			gamepadKeyMappings.clear();
+			for (String action : ALL_J2ME_ACTIONS) {
+				String configKey = "gamepad_action_" + action;
+				if (sysSettings.containsKey(configKey)) {
+					String mappingsString = sysSettings.get(configKey);
+					if (mappingsString != null && !mappingsString.isEmpty()) {
+						List<String> currentActionMappings = new ArrayList<>(Arrays.asList(mappingsString.split(",")));
+						gamepadKeyMappings.put(action, currentActionMappings);
+					}
+				}
+			}
+			// Initialize default gamepad mappings if none are loaded (or if file was just created)
+			if (gamepadKeyMappings.isEmpty() && sFile.length() == 0) { // Check if sFile was empty before this load
+				setDefaultGamepadMappings();
+			}
+
 		}
 		catch (Exception e)
 		{
@@ -274,6 +331,47 @@ public class Config
 
 	}
 
+	private void setDefaultGamepadMappings() {
+		Mobile.log(Mobile.LOG_INFO, "Config: Setting default gamepad mappings.");
+		gamepadKeyMappings.clear();
+		// Example default mappings (can be expanded)
+		// Assumes first connected gamepad (index 0)
+		gamepadKeyMappings.put(J2ME_ACTION_UP, new ArrayList<>(Collections.singletonList("gp0_hat0_up")));
+		gamepadKeyMappings.put(J2ME_ACTION_DOWN, new ArrayList<>(Collections.singletonList("gp0_hat0_down")));
+		gamepadKeyMappings.put(J2ME_ACTION_LEFT, new ArrayList<>(Collections.singletonList("gp0_hat0_left")));
+		gamepadKeyMappings.put(J2ME_ACTION_RIGHT, new ArrayList<>(Collections.singletonList("gp0_hat0_right")));
+		// Typically, gamepads have buttons like A, B, X, Y. SDL numbers them starting from 0.
+		// A common layout might map SDL_CONTROLLER_BUTTON_A (often button 0) to FIRE.
+		gamepadKeyMappings.put(J2ME_ACTION_FIRE, new ArrayList<>(Collections.singletonList("gp0_button_0"))); // e.g., 'A' button
+		gamepadKeyMappings.put(J2ME_ACTION_LEFT_SOFT, new ArrayList<>(Collections.singletonList("gp0_button_4"))); // e.g., Left Shoulder
+		gamepadKeyMappings.put(J2ME_ACTION_RIGHT_SOFT, new ArrayList<>(Collections.singletonList("gp0_button_5"))); // e.g., Right Shoulder
+
+		// Analog stick example (left stick for movement)
+		// Negative Y on axis 1 for UP
+		List<String> upMappings = gamepadKeyMappings.getOrDefault(J2ME_ACTION_UP, new ArrayList<>());
+		upMappings.add("gp0_axis1_neg");
+		gamepadKeyMappings.put(J2ME_ACTION_UP, upMappings);
+
+		// Positive Y on axis 1 for DOWN
+		List<String> downMappings = gamepadKeyMappings.getOrDefault(J2ME_ACTION_DOWN, new ArrayList<>());
+		downMappings.add("gp0_axis1_pos");
+		gamepadKeyMappings.put(J2ME_ACTION_DOWN, downMappings);
+
+		// Negative X on axis 0 for LEFT
+		List<String> leftMappings = gamepadKeyMappings.getOrDefault(J2ME_ACTION_LEFT, new ArrayList<>());
+		leftMappings.add("gp0_axis0_neg");
+		gamepadKeyMappings.put(J2ME_ACTION_LEFT, leftMappings);
+
+		// Positive X on axis 0 for RIGHT
+		List<String> rightMappings = gamepadKeyMappings.getOrDefault(J2ME_ACTION_RIGHT, new ArrayList<>());
+		rightMappings.add("gp0_axis0_pos");
+		gamepadKeyMappings.put(J2ME_ACTION_RIGHT, rightMappings);
+
+		// Save these defaults if they were just set
+		saveConfig();
+	}
+
+
 	public void saveConfig()
 	{
 		try
@@ -281,11 +379,11 @@ public class Config
 			FileOutputStream fout = new FileOutputStream(cFile);
 			BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(fout));
 
-			// Sort the config keys alphabetically before saving
-			List<String> sortedKeys = new ArrayList<>(settings.keySet());
-        	Collections.sort(sortedKeys);
+			// Sort the config keys alphabetically before saving for game-specific settings
+			List<String> sortedGameSettingKeys = new ArrayList<>(settings.keySet());
+		Collections.sort(sortedGameSettingKeys);
 
-			for (String key : sortedKeys)
+			for (String key : sortedGameSettingKeys)
 			{
 				writer.write(key+":"+settings.get(key)+"\n");
 			}
@@ -293,15 +391,30 @@ public class Config
 
 
 			/* Save system file, also sorted alphabetically */
-			sortedKeys = new ArrayList<>(sysSettings.keySet());
-        	Collections.sort(sortedKeys);
+			// First, put all existing sysSettings into a temporary map
+			HashMap<String, String> tempSysSettings = new HashMap<>(sysSettings);
+
+			// Then, add/update gamepad mappings into this temporary map
+			for (String action : ALL_J2ME_ACTIONS) {
+				List<String> mappings = gamepadKeyMappings.get(action);
+				if (mappings != null && !mappings.isEmpty()) {
+					String mappingsString = String.join(",", mappings);
+					tempSysSettings.put("gamepad_action_" + action, mappingsString);
+				} else {
+					// If an action has no gamepad mappings, remove it from config to keep it clean
+					tempSysSettings.remove("gamepad_action_" + action);
+				}
+			}
+
+			List<String> sortedSystemKeys = new ArrayList<>(tempSysSettings.keySet());
+		Collections.sort(sortedSystemKeys);
 
 			fout = new FileOutputStream(sFile);
 			writer = new BufferedWriter(new OutputStreamWriter(fout));
 
-			for (String key : sortedKeys)
+			for (String key : sortedSystemKeys)
 			{
-				writer.write(key+":"+sysSettings.get(key)+"\n");
+				writer.write(key+":"+tempSysSettings.get(key)+"\n");
 			}
 			writer.close();
 		}

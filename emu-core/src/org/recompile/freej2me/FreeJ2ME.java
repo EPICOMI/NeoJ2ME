@@ -387,13 +387,23 @@ public class FreeJ2ME
 			Mobile.log(Mobile.LOG_ERROR, "FreeJ2ME: Cleanup failed: " + e.getMessage());
 		}
 		Mobile.log(Mobile.LOG_INFO, "FreeJ2ME: Clearing resources...");
-		awtGUI = null;
+		if (awtGUI != null) {
+			awtGUI.stopGamepadPolling();
+			awtGUI = null;
+		}
 		lcd = null;
 		if (main != null) {
 			Mobile.log(Mobile.LOG_INFO, "FreeJ2ME: Disposing frame...");
 			main.dispose();
 			main = null;
 		}
+
+		// Shutdown SDL Joystick subsystem
+		Mobile.log(Mobile.LOG_INFO, "FreeJ2ME: Shutting down SDL Joystick subsystem...");
+		SDL.SDL_QuitSubSystem(SDL.SDL_INIT_JOYSTICK);
+		SDL.SDL_Quit();
+		Mobile.log(Mobile.LOG_INFO, "FreeJ2ME: SDL Joystick subsystem shut down.");
+
 		System.gc();
 		Mobile.log(Mobile.LOG_INFO, "FreeJ2ME: Shutdown complete.");
 		isShuttingDown = false;
@@ -703,6 +713,7 @@ public class FreeJ2ME
 package org.recompile.freej2me;
 
 import org.recompile.mobile.Mobile;
+import org.libsdl.SDL;
 import org.recompile.mobile.MobilePlatform;
 
 import java.awt.Canvas;
@@ -756,6 +767,14 @@ public class FreeJ2ME
 	{
 		app = this;
 		try {
+			// Initialize SDL joystick subsystem
+			if (SDL.SDL_Init(SDL.SDL_INIT_JOYSTICK) != 0) {
+				Mobile.log(Mobile.LOG_ERROR, "FreeJ2ME: Failed to initialize SDL Joystick subsystem: " + SDL.SDL_GetError());
+				// Depending on requirements, might want to throw an error or exit
+			} else {
+				Mobile.log(Mobile.LOG_INFO, "FreeJ2ME: SDL Joystick subsystem initialized.");
+			}
+
 			if (args.length >= 3) {
 				Mobile.lcdWidth = Integer.parseInt(args[1]);
 				Mobile.lcdHeight = Integer.parseInt(args[2]);

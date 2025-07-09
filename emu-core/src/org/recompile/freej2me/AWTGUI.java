@@ -44,6 +44,12 @@ import java.io.File;
 import java.io.FilenameFilter;
 
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.libsdl.SDL;
+import com.sun.jna.ptr.PointerByReference;
+
 
 import org.recompile.mobile.Mobile;
 import org.recompile.mobile.MobilePlatform;
@@ -51,6 +57,19 @@ import org.recompile.mobile.MobilePlatform;
 public final class AWTGUI 
 {
 	final String VERSION = "1.45";
+
+	// --- Gamepad Support ---
+	private Thread gamepadPollingThread; // Thread for polling gamepad inputs
+	private volatile boolean isPollingGamepads; // Flag to control the polling thread
+	private List<PointerByReference> joysticks = new ArrayList<>(); // List of opened SDL_Joystick objects
+	private static final short DEAD_ZONE = 8000; // Threshold for analog stick input to ignore minor drift
+	private volatile String waitingForGamepadInputForAction = null; // Stores the J2ME action currently being mapped
+	private volatile String capturedGamepadInput = null; // Stores the raw SDL input string captured for mapping
+	private Button[] gamepadMappingButtons; // UI Buttons in the gamepad mapping dialog, one for each J2ME action
+	private HashMap<String, Boolean> activeGamepadJ2MEInputs = new HashMap<>(); // Tracks the pressed state of J2ME actions triggered by gamepads
+	// Key: J2ME Action (e.g., "ArrowUp"), Value: true if pressed, false if released
+
+
 	/* This is used to indicate to FreeJ2ME that it has to call "settingsChanged()" to apply changes made here */
 	private boolean hasPendingChange;
 
@@ -93,6 +112,7 @@ public final class AWTGUI
 		new Dialog(main, "FreeJ2ME MemStat", false),
 		new Dialog(main, "Restart Required", true),
 		new Dialog(main, "Key Mapping", true),
+		new Dialog(main, "Gamepad Mapping", true), // New dialog for gamepad
 	};
 	
 	final Button[] awtButtons = 
@@ -103,7 +123,9 @@ public final class AWTGUI
 		new Button("Close FreeJ2ME"),
 		new Button("Restart later"),
 		new Button("Apply Inputs"),
-		new Button("Cancel")
+		new Button("Cancel"),
+		new Button("Apply Gamepad Inputs"), // New buttons for gamepad dialog
+		new Button("Cancel Gamepad Inputs") // New buttons for gamepad dialog
 	};
 	
 
@@ -171,6 +193,7 @@ public final class AWTGUI
 	final MenuItem pauseRes = new MenuItem("Pause / Resume (Ctrl+X)");
 	final MenuItem exitMenuItem = new MenuItem("Exit FreeJ2ME");
 	final MenuItem mapInputs = new MenuItem("Manage Inputs");
+	final MenuItem mapGamepadInputs = new MenuItem("Manage Gamepad Inputs"); // New menu item
 
 	final MenuItem showPlayer = new MenuItem("J2ME Media Player");
 
@@ -361,11 +384,57 @@ public final class AWTGUI
 		awtButtons[6].setBackground(FreeJ2ME.freeJ2MEDragColor);
 		awtButtons[6].setForeground(Color.RED);
 
+		// Gamepad mapping dialog buttons (Apply/Cancel)
+		awtButtons[7].setBackground(FreeJ2ME.freeJ2MEDragColor); // Apply Gamepad Inputs
+		awtButtons[7].setForeground(Color.GREEN);
+		awtButtons[8].setBackground(FreeJ2ME.freeJ2MEDragColor); // Cancel Gamepad Inputs
+		awtButtons[8].setForeground(Color.RED);
+
+
 		for(int i = 0; i < inputButtons.length; i++) 
 		{ 
 			inputButtons[i].setBackground(FreeJ2ME.freeJ2MEDragColor);
 			inputButtons[i].setForeground(Color.ORANGE);
 		}
+
+		// Setup Gamepad Mapping Dialog (awtDialogs[5])
+		awtDialogs[5].setBackground(FreeJ2ME.freeJ2MEBGColor);
+		awtDialogs[5].setForeground(Color.ORANGE);
+		// Using GridLayout: rows = number of actions + header/footer, cols = 2 (Action Label, Map Button)
+		// Number of actions from Config.ALL_J2ME_ACTIONS
+		awtDialogs[5].setLayout(new GridLayout(Config.ALL_J2ME_ACTIONS.length + 2, 2, 5, 5)); // +2 for header and apply/cancel row
+		awtDialogs[5].setSize(350, 600); // Adjusted size
+		awtDialogs[5].setLocationRelativeTo(main);
+		awtDialogs[5].setResizable(true); // Allow resizing
+
+		awtDialogs[5].add(new Label("J2ME Action"));
+		awtDialogs[5].add(new Label("Gamepad Input (Click to Map)"));
+
+		gamepadMappingButtons = new Button[Config.ALL_J2ME_ACTIONS.length];
+		for (int i = 0; i < Config.ALL_J2ME_ACTIONS.length; i++) {
+			String action = Config.ALL_J2ME_ACTIONS[i];
+			Label actionLabel = new Label(action);
+			actionLabel.setForeground(Color.WHITE);
+			awtDialogs[5].add(actionLabel);
+
+			gamepadMappingButtons[i] = new Button("None"); // Placeholder text
+			gamepadMappingButtons[i].setBackground(FreeJ2ME.freeJ2MEDragColor);
+			gamepadMappingButtons[i].setForeground(Color.ORANGE);
+			final int buttonIndex = i;
+			gamepadMappingButtons[i].addActionListener(e -> {
+				waitingForGamepadInputForAction = Config.ALL_J2ME_ACTIONS[buttonIndex];
+				capturedGamepadInput = null; // Clear any previously captured input
+				gamepadMappingButtons[buttonIndex].setLabel("Waiting...");
+				// The polling thread will now pick this up
+			});
+			awtDialogs[5].add(gamepadMappingButtons[i]);
+		}
+
+		awtDialogs[5].add(awtButtons[7]); // Apply Gamepad Inputs
+		awtDialogs[5].add(awtButtons[7]); // Apply Gamepad Inputs
+		awtDialogs[5].add(awtButtons[8]); // Cancel Gamepad Inputs
+		// --- End of Gamepad Mapping Dialog Setup ---
+
 
 		awtDialogs[4].add(new Label("Map keys by"));
 		awtDialogs[4].add(new Label("clicking each"));
@@ -473,6 +542,10 @@ public final class AWTGUI
 		mapInputs.setActionCommand("MapInputs");
 		awtButtons[5].setActionCommand("ApplyInputs");
 		awtButtons[6].setActionCommand("CancelInputs");
+		mapGamepadInputs.setActionCommand("MapGamepadInputs");
+		awtButtons[7].setActionCommand("ApplyGamepadInputs");
+		awtButtons[8].setActionCommand("CancelGamepadInputs");
+
 
 		showPlayer.setActionCommand("ShowPlayer");
 		
@@ -491,6 +564,10 @@ public final class AWTGUI
 		mapInputs.addActionListener(menuItemListener);
 		awtButtons[5].addActionListener(menuItemListener);
 		awtButtons[6].addActionListener(menuItemListener);
+		mapGamepadInputs.addActionListener(menuItemListener);
+		awtButtons[7].addActionListener(menuItemListener);
+		awtButtons[8].addActionListener(menuItemListener);
+
 
 		showPlayer.addActionListener(menuItemListener);
 
@@ -499,7 +576,290 @@ public final class AWTGUI
 		setActionListeners();
 
 		buildMenuBar();
+
+		initGamepads();
+		startGamepadPolling();
 	}
+
+	/**
+	 * Initializes gamepads by detecting connected SDL joysticks and opening them.
+	 * This should be called once, e.g., in the constructor.
+	 */
+	private void initGamepads() {
+		int numJoysticks = SDL.SDL_NumJoysticks();
+		Mobile.log(Mobile.LOG_INFO, "AWTGUI: Number of joysticks detected: " + numJoysticks);
+		for (int i = 0; i < numJoysticks; i++) {
+			PointerByReference joystick = SDL.SDL_JoystickOpen(i);
+			if (joystick == null) {
+				Mobile.log(Mobile.LOG_ERROR, "AWTGUI: Couldn't open joystick " + i + ": " + SDL.SDL_GetError());
+			} else {
+				String joystickName = SDL.SDL_JoystickName(joystick);
+				Mobile.log(Mobile.LOG_INFO, "AWTGUI: Opened joystick " + i + ": " + joystickName);
+				joysticks.add(joystick);
+				// Further joystick capabilities (num_buttons, axes, hats) can be queried here if needed for UI.
+			}
+		}
+	}
+
+	/**
+	 * Starts a new thread that continuously polls for SDL gamepad events (hot-plugging)
+	 * and joystick states (buttons, axes, hats).
+	 * If waiting to map an input, it captures the next input. Otherwise, it translates
+	 * active inputs to J2ME actions based on current mappings.
+	 */
+	private void startGamepadPolling() {
+		if (joysticks.isEmpty() && SDL.SDL_NumJoysticks() == 0) { // Also check current number in case init failed for some
+			Mobile.log(Mobile.LOG_INFO, "AWTGUI: No joysticks to poll initially.");
+			return;
+		}
+
+		isPollingGamepads = true;
+		gamepadPollingThread = new Thread(() -> {
+			SDL.SDL_Event event = new SDL.SDL_Event();
+			while (isPollingGamepads) {
+				// Handle SDL events for hot-plugging
+				while (SDL.SDL_PollEvent(event) == 1) {
+					switch (event.type) {
+						case SDL.SDL_JOYDEVICEADDED:
+							int deviceIndexAdded = event.jdevice.which;
+							PointerByReference newJoystick = SDL.SDL_JoystickOpen(deviceIndexAdded);
+							if (newJoystick != null) {
+								joysticks.add(newJoystick); // Consider thread safety if accessed elsewhere
+								Mobile.log(Mobile.LOG_INFO, "AWTGUI: Joystick " + deviceIndexAdded + " (" + SDL.SDL_JoystickName(newJoystick) + ") added.");
+							} else {
+								Mobile.log(Mobile.LOG_ERROR, "AWTGUI: Could not open newly added joystick " + deviceIndexAdded + ": " + SDL.SDL_GetError());
+							}
+							break;
+						case SDL.SDL_JOYDEVICEREMOVED:
+							int instanceIdRemoved = event.jdevice.which;
+							for (int i = 0; i < joysticks.size(); i++) {
+								PointerByReference currentJoy = joysticks.get(i);
+								if (currentJoy != null && SDL.SDL_JoystickInstanceID(currentJoy) == instanceIdRemoved) {
+									SDL.SDL_JoystickClose(currentJoy);
+									joysticks.remove(i);
+									Mobile.log(Mobile.LOG_INFO, "AWTGUI: Joystick with instance ID " + instanceIdRemoved + " removed.");
+									// Clear any active states for this joystick if necessary
+									// This might require iterating activeGamepadJ2MEInputs and releasing keys if they were tied to this specific joystick.
+									// For simplicity now, global release isn't tied to specific joystick index.
+									break;
+								}
+							}
+							break;
+					}
+				}
+
+				SDL.SDL_JoystickUpdate(); // Still need to update states for polling
+
+				for (int joyIndex = 0; joyIndex < joysticks.size(); joyIndex++) {
+					PointerByReference joystick = joysticks.get(joyIndex);
+					if (joystick == null) continue;
+
+					if (waitingForGamepadInputForAction != null) {
+						// Check buttons
+						int numButtons = SDL.SDL_JoystickNumButtons(joystick);
+						for (int btn = 0; btn < numButtons; btn++) {
+							if (SDL.SDL_JoystickGetButton(joystick, btn) == 1) {
+								capturedGamepadInput = "gp" + joyIndex + "_button_" + btn;
+								updateGamepadMappingButtonLabel(waitingForGamepadInputForAction, capturedGamepadInput);
+								waitingForGamepadInputForAction = null; // Stop waiting
+								break;
+							}
+						}
+						if (waitingForGamepadInputForAction == null) continue; // Input captured
+
+						// Check Hats (D-Pad)
+						int numHats = SDL.SDL_JoystickNumHats(joystick);
+						for (int hat = 0; hat < numHats; hat++) {
+							byte hatState = SDL.SDL_JoystickGetHat(joystick, hat);
+							if (hatState != SDL.SDL_HAT_CENTERED) {
+								String hatDir = "";
+								if ((hatState & SDL.SDL_HAT_UP) != 0) hatDir = "up";
+								else if ((hatState & SDL.SDL_HAT_DOWN) != 0) hatDir = "down";
+								else if ((hatState & SDL.SDL_HAT_LEFT) != 0) hatDir = "left";
+								else if ((hatState & SDL.SDL_HAT_RIGHT) != 0) hatDir = "right";
+								// Diagonal inputs could also be captured if needed
+
+								if (!hatDir.isEmpty()) {
+									capturedGamepadInput = "gp" + joyIndex + "_hat" + hat + "_" + hatDir;
+									updateGamepadMappingButtonLabel(waitingForGamepadInputForAction, capturedGamepadInput);
+									waitingForGamepadInputForAction = null;
+									break;
+								}
+							}
+						}
+						if (waitingForGamepadInputForAction == null) continue;
+
+						// Check Axes
+						int numAxes = SDL.SDL_JoystickNumAxes(joystick);
+						for (int axis = 0; axis < numAxes; axis++) {
+							short axisValue = SDL.SDL_JoystickGetAxis(joystick, axis);
+							if (axisValue < -DEAD_ZONE) {
+								capturedGamepadInput = "gp" + joyIndex + "_axis" + axis + "_neg";
+								updateGamepadMappingButtonLabel(waitingForGamepadInputForAction, capturedGamepadInput);
+								waitingForGamepadInputForAction = null;
+								break;
+							} else if (axisValue > DEAD_ZONE) {
+								capturedGamepadInput = "gp" + joyIndex + "_axis" + axis + "_pos";
+								updateGamepadMappingButtonLabel(waitingForGamepadInputForAction, capturedGamepadInput);
+								waitingForGamepadInputForAction = null;
+								break;
+							}
+						}
+						if (waitingForGamepadInputForAction == null) continue; // Input captured, move to next joystick or poll cycle
+					} else {
+						// Normal input processing: Translate active gamepad inputs to J2ME actions
+						if (config == null || config.gamepadKeyMappings == null || !hasLoadedFile()) {
+							continue; // Config not ready or no file loaded
+						}
+
+						// Store current state of all relevant gamepad inputs for this joystick
+						HashMap<String, Boolean> currentJoystickInputStates = new HashMap<>();
+
+						// Buttons
+						int numButtons = SDL.SDL_JoystickNumButtons(joystick);
+						for (int btn = 0; btn < numButtons; btn++) {
+							String gpInput = "gp" + joyIndex + "_button_" + btn;
+							currentJoystickInputStates.put(gpInput, SDL.SDL_JoystickGetButton(joystick, btn) == 1);
+						}
+
+						// Hats
+						int numHats = SDL.SDL_JoystickNumHats(joystick);
+						for (int hat = 0; hat < numHats; hat++) {
+							byte hatState = SDL.SDL_JoystickGetHat(joystick, hat);
+							currentJoystickInputStates.put("gp" + joyIndex + "_hat" + hat + "_up", (hatState & SDL.SDL_HAT_UP) != 0);
+							currentJoystickInputStates.put("gp" + joyIndex + "_hat" + hat + "_down", (hatState & SDL.SDL_HAT_DOWN) != 0);
+							currentJoystickInputStates.put("gp" + joyIndex + "_hat" + hat + "_left", (hatState & SDL.SDL_HAT_LEFT) != 0);
+							currentJoystickInputStates.put("gp" + joyIndex + "_hat" + hat + "_right", (hatState & SDL.SDL_HAT_RIGHT) != 0);
+						}
+
+						// Axes
+						int numAxes = SDL.SDL_JoystickNumAxes(joystick);
+						for (int axis = 0; axis < numAxes; axis++) {
+							short axisValue = SDL.SDL_JoystickGetAxis(joystick, axis);
+							currentJoystickInputStates.put("gp" + joyIndex + "_axis" + axis + "_neg", axisValue < -DEAD_ZONE);
+							currentJoystickInputStates.put("gp" + joyIndex + "_axis" + axis + "_pos", axisValue > DEAD_ZONE);
+						}
+
+						// Iterate through all J2ME actions and check if any mapped gamepad input is active
+                        for (String j2meAction : Config.ALL_J2ME_ACTIONS) {
+                            List<String> gameInputsForAction = config.gamepadKeyMappings.get(j2meAction);
+                            if (gameInputsForAction == null || gameInputsForAction.isEmpty()) {
+                                continue;
+                            }
+
+                            boolean actionCurrentlyTriggeredByGamepad = false;
+                            for (String specificGamepadInput : gameInputsForAction) {
+                                if (currentJoystickInputStates.getOrDefault(specificGamepadInput, false)) {
+                                    actionCurrentlyTriggeredByGamepad = true;
+                                    break;
+                                }
+                            }
+
+                            int j2meKeyCode = getMobileKeyForJ2MEAction(j2meAction);
+                            if (j2meKeyCode == Integer.MIN_VALUE) continue; // Should not happen if ALL_J2ME_ACTIONS is correct
+
+                            Boolean previouslyActive = activeGamepadJ2MEInputs.getOrDefault(j2meAction, false);
+
+                            if (actionCurrentlyTriggeredByGamepad) {
+                                if (!previouslyActive) {
+                                    MobilePlatform.pressedKeys[j2meKeyCode] = true;
+                                    MobilePlatform.keyPressed(Mobile.getMobileKey(j2meKeyCode));
+                                    activeGamepadJ2MEInputs.put(j2meAction, true);
+                                    // Mobile.log(Mobile.LOG_DEBUG, "Gamepad press: " + j2meAction + " (Code: " + j2meKeyCode + ")");
+                                } else {
+                                    // Key repeat could be handled here if desired, similar to keyboard
+                                    MobilePlatform.keyRepeated(Mobile.getMobileKey(j2meKeyCode));
+                                }
+                            } else {
+                                if (previouslyActive) {
+                                    MobilePlatform.pressedKeys[j2meKeyCode] = false;
+                                    MobilePlatform.keyReleased(Mobile.getMobileKey(j2meKeyCode));
+                                    activeGamepadJ2MEInputs.put(j2meAction, false);
+                                    // Mobile.log(Mobile.LOG_DEBUG, "Gamepad release: " + j2meAction + " (Code: " + j2meKeyCode + ")");
+                                }
+                            }
+                        }
+					}
+				}
+
+				try {
+					Thread.sleep(16); // Poll roughly 60 times per second
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					break;
+				}
+			}
+		});
+		gamepadPollingThread.setName("GamepadPollingThread");
+		gamepadPollingThread.start();
+		Mobile.log(Mobile.LOG_INFO, "AWTGUI: Gamepad polling thread started.");
+	}
+
+	public void stopGamepadPolling() {
+		isPollingGamepads = false;
+		if (gamepadPollingThread != null) {
+			try {
+				gamepadPollingThread.join(1000); // Wait for the thread to finish
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				Mobile.log(Mobile.LOG_ERROR, "AWTGUI: Interrupted while stopping gamepad polling thread.");
+			}
+			gamepadPollingThread = null;
+		}
+
+		for (PointerByReference joystick : joysticks) {
+			if (joystick != null) {
+				SDL.SDL_JoystickClose(joystick);
+			}
+		}
+		joysticks.clear();
+		Mobile.log(Mobile.LOG_INFO, "AWTGUI: Gamepad polling stopped and joysticks closed.");
+	}
+
+	// Helper to get the internal Mobile key code for a J2ME action string
+	private int getMobileKeyForJ2MEAction(String actionName) {
+		for (int i = 0; i < Config.ALL_J2ME_ACTIONS.length; i++) {
+			if (Config.ALL_J2ME_ACTIONS[i].equals(actionName)) {
+				// Config.ALL_J2ME_ACTIONS maps 1:1 to the conceptual order of inputButtons/inputKeycodes
+				// The index 'i' here corresponds to the index used in Mobile.convertAWTKeycode()
+				return Mobile.convertAWTKeycode(i);
+			}
+		}
+		// Special handling for actions that might not be in inputButtons but have direct Mobile keycodes
+		// This part might need adjustment based on how Mobile class defines its keycodes if they don't align perfectly
+		// For now, assume ALL_J2ME_ACTIONS covers all translatable inputs via convertAWTKeycode.
+		Mobile.log(Mobile.LOG_WARNING, "AWTGUI: No mobile key code found for J2ME Action: " + actionName);
+		return Integer.MIN_VALUE; // Should not happen for defined actions
+	}
+
+	private void updateGamepadMappingButtonLabel(String actionName, String gamepadInputName) {
+		for (int i = 0; i < Config.ALL_J2ME_ACTIONS.length; i++) {
+			if (Config.ALL_J2ME_ACTIONS[i].equals(actionName)) {
+				final int buttonIndexToUpdate = i;
+				SwingUtilities.invokeLater(() -> { // Ensure UI updates on EDT
+					if (gamepadMappingButtons != null && buttonIndexToUpdate < gamepadMappingButtons.length) { // Check for null or out of bounds
+						gamepadMappingButtons[buttonIndexToUpdate].setLabel(gamepadInputName);
+					}
+				});
+				break;
+			}
+		}
+	}
+
+	private void loadGamepadMappingsToDialog() {
+		if (config == null || config.gamepadKeyMappings == null) return;
+		for (int i = 0; i < Config.ALL_J2ME_ACTIONS.length; i++) {
+			String action = Config.ALL_J2ME_ACTIONS[i];
+			List<String> mappings = config.gamepadKeyMappings.get(action);
+			if (mappings != null && !mappings.isEmpty()) {
+				// For simplicity, show the first mapping. UI could be enhanced for multiple.
+				gamepadMappingButtons[i].setLabel(mappings.get(0));
+			} else {
+				gamepadMappingButtons[i].setLabel("None");
+			}
+		}
+	}
+
 
 	private void addInputButtonListeners() 
 	{
@@ -872,6 +1232,7 @@ public final class AWTGUI
 		optionMenu.add(useCustomFont);
 		optionMenu.add(resChangeMenuItem);
 		optionMenu.add(mapInputs);
+		optionMenu.add(mapGamepadInputs); // Add new menu item here
 		optionMenu.add(phoneType);
 		optionMenu.add(backlightColor);
 		optionMenu.add(fpsCap);
@@ -1069,6 +1430,38 @@ public final class AWTGUI
 			}
 
 			else if(a.getActionCommand() == "CancelInputs") { awtDialogs[4].setVisible(false); }
+
+			else if(a.getActionCommand() == "MapGamepadInputs")
+			{
+				loadGamepadMappingsToDialog(); // Load current mappings into dialog
+				awtDialogs[5].setVisible(true);
+			}
+			else if(a.getActionCommand() == "ApplyGamepadInputs")
+			{
+				// Save the captured mappings from button labels to config
+				for (int i = 0; i < Config.ALL_J2ME_ACTIONS.length; i++) {
+					String action = Config.ALL_J2ME_ACTIONS[i];
+					String mappedInput = gamepadMappingButtons[i].getLabel();
+					if (mappedInput != null && !mappedInput.equals("None") && !mappedInput.equals("Waiting...")) {
+						List<String> mappings = new ArrayList<>();
+						mappings.add(mappedInput); // For now, one mapping per action via UI
+						config.gamepadKeyMappings.put(action, mappings);
+					} else {
+						config.gamepadKeyMappings.remove(action); // Or put an empty list
+					}
+				}
+				config.saveConfig();
+				awtDialogs[5].setVisible(false);
+				// Potentially set hasPendingChange = true if immediate effect is needed,
+				// but typically input mapping changes don't require a restart.
+			}
+			else if(a.getActionCommand() == "CancelGamepadInputs")
+			{
+				// If user cancels, revert any "Waiting..." labels back to original loaded mappings
+				loadGamepadMappingsToDialog();
+				awtDialogs[5].setVisible(false);
+				waitingForGamepadInputForAction = null; // Ensure we are not stuck waiting
+			}
 
 			else if(a.getActionCommand() == "ShowPlayer") 
 			{ 
