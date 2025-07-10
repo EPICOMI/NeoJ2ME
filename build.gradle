@@ -21,6 +21,7 @@ dependencies {
     implementation files('emu-core/lib/libsdl4j.jar')
     implementation files('emu-core/lib/libsdl4j-2.24.0-1.0_mini.jar')
     implementation 'io.github.libsdl4j:libsdl4j:2.24.0-1.0'
+    implementation 'com.formdev:flatlaf:3.6'
 }
 
 test {

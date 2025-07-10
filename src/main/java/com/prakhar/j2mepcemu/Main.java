@@ -25,6 +25,11 @@ import com.prakhar.j2mepcemu.IgnoredGamesConfig;
 import com.prakhar.j2mepcemu.PermanentlyRemovedGamesConfig; // New
 import java.io.IOException; // For handling exceptions from IgnoredGamesConfig
 import org.recompile.freej2me.FreeJ2ME;
+import com.formdev.flatlaf.FlatDarkLaf;
+import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import javax.swing.UnsupportedLookAndFeelException;
 
 public class Main {
     private static JFrame frame;
@@ -37,6 +42,12 @@ public class Main {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> createAndShowGUI());
+
+        try {
+            UIManager.setLookAndFeel(new FlatDarkLaf());
+        } catch (UnsupportedLookAndFeelException e) {
+            e.printStackTrace();
+        }
     }
 
     private static void createAndShowGUI() {
