@@ -1,7 +1,7 @@
 package com.prakhar.j2mepcemu;
 
 import javax.swing.*;
-import java.awt.Window;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import com.formdev.flatlaf.FlatDarkLaf;
@@ -64,9 +64,6 @@ public class MenuBar {
         });
         optionsMenu.add(settingsItem);
 
- //       JMenuItem themeItem = new JMenuItem("Change Theme...");
-//        themeItem.addActionListener()
-
         // Create "Change Theme" submenu
         JMenu changeThemeMenu = new JMenu("Change Theme");
 
@@ -109,9 +106,45 @@ public class MenuBar {
             }
         });
         changeThemeMenu.add(darkThemeItem);
+/*
+        JMenuItem customColorsItem = new JMenuItem("Customize...");
+        customColorsItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                Color newBackground = JColorChooser.showDialog(parentFrame, "Choose Background Color", null);
+                if (newBackground != null) {
+                    UIManager.put("Panel.background", newBackground);
+                    SwingUtilities.updateComponentTreeUI(parentFrame);
+                }
+            }
+        });
+        changeThemeMenu.add(customColorsItem);
+*/
+
+        // Submenu for color customization
+        JMenu customizeColorsMenu = new JMenu("Customize...");
+
+//        // Background Color
+//        JMenuItem backgroundColorItem = new JMenuItem("Background Color");
+//        backgroundColorItem.addActionListener(e -> customizeColor("Panel.background", "Choose Background Color"));
+//        customizeColorsMenu.add(backgroundColorItem);
+
+//        // Text Color
+//        JMenuItem textColorItem = new JMenuItem("Text Color");
+//        textColorItem.addActionListener(e -> customizeColor("Label.foreground", "Choose Text Color"));
+//        customizeColorsMenu.add(textColorItem);
+
+        // Selection Color
+        JMenuItem selectionColorItem = new JMenuItem("Selection Color");
+        selectionColorItem.addActionListener(e -> customizeColor("List.selectionBackground", "Choose Selection Color"));
+        customizeColorsMenu.add(selectionColorItem);
+
+        changeThemeMenu.add(customizeColorsMenu);
 
         // Add the "Change Theme" submenu to the "Options" menu
         optionsMenu.add(changeThemeMenu);
+
+        UIManager.put( "Button.arc", 999);
 
         return optionsMenu;
     }
@@ -135,4 +168,25 @@ public class MenuBar {
         HiddenGamesDialog dialog = new HiddenGamesDialog(parentFrame);
         dialog.setVisible(true);
     }
+
+    private void customizeColor(String uiKey, String chooserTitle) {
+        Color newColor = JColorChooser.showDialog(parentFrame, chooserTitle, null);
+        if (newColor != null) {
+            UIManager.put(uiKey, newColor);
+            updateAllWindowsUI();
+        }
+    }
+
+    private void updateAllWindowsUI() {
+        for (Window window : Window.getWindows()) {
+            try {
+                SwingUtilities.updateComponentTreeUI(window);
+            } catch (Exception ex) {
+                System.err.println("Failed to update UI for window: " + window);
+                ex.printStackTrace();
+            }
+        }
+    }
+
 }
+
