@@ -7,6 +7,7 @@ import java.awt.*;
 import java.awt.dnd.*;
 import java.awt.datatransfer.*;
 import java.awt.event.*;
+import java.io.*;
 import java.io.File;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -16,6 +17,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Properties;
 import java.util.HashSet; // For efficient lookup of existing game file paths
 import java.util.Set; // For the HashSet
 import javax.swing.JFileChooser;
@@ -45,10 +47,77 @@ public class Main {
         SwingUtilities.invokeLater(() -> createAndShowGUI());
 
     //   FlatLightLaf.setup();
+//        try {
+//            UIManager.setLookAndFeel(new FlatDarkLaf());
+//        } catch (UnsupportedLookAndFeelException e) {
+//            e.printStackTrace();
+//        }
+
+        // Load initial theme
+//        try {
+//            Properties props = new Properties();
+//            File configDir = new File(System.getProperty("user.home") + "/.myapp");
+//            File configFile = new File(configDir, "config.properties");
+//
+//            if (configFile.exists()) {
+//                try (FileInputStream in = new FileInputStream(configFile)) {
+//                    props.load(in);
+//                }
+//                String theme = props.getProperty("theme");
+//                if ("light".equals(theme)) {
+//                    UIManager.setLookAndFeel(new FlatLightLaf());
+//                } else if ("dark".equals(theme)) {
+//                    UIManager.setLookAndFeel(new FlatDarkLaf());
+//                }
+//            } else {
+//                // Default to light theme on first run
+//                UIManager.setLookAndFeel(new FlatLightLaf());
+//                props.setProperty("theme", "light");
+//                configDir.mkdirs();
+//                try (FileOutputStream out = new FileOutputStream(configFile)) {
+//                    props.store(out, "Theme configuration");
+//                }
+//            }
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//            try {
+//                UIManager.setLookAndFeel(new FlatLightLaf()); // Fallback to light
+//            } catch (Exception ex) {
+//                ex.printStackTrace();
+//            }
+//        }
+
         try {
-            UIManager.setLookAndFeel(new FlatDarkLaf());
-        } catch (UnsupportedLookAndFeelException e) {
+            Properties props = new Properties();
+            File configDir = new File(System.getProperty("user.home") + "/.myapp");
+            File configFile = new File(configDir, "config.properties");
+
+            if (configFile.exists()) {
+                try (FileInputStream in = new FileInputStream(configFile)) {
+                    props.load(in);
+                }
+                String theme = props.getProperty("theme");
+                if ("light".equals(theme)) {
+                    FlatLightLaf.setup();
+                } else if ("dark".equals(theme)) {
+                    FlatDarkLaf.setup();
+                }
+            } else {
+                // Default to light theme on first run
+                FlatLightLaf.setup();
+                props.setProperty("theme", "light");
+                configDir.mkdirs();
+                try (FileOutputStream out = new FileOutputStream(configFile)) {
+                    props.store(out, "Theme configuration");
+                }
+            }
+        } catch (Exception e) {
             e.printStackTrace();
+            try {
+                FlatLightLaf.setup(); // Fallback to light
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
         }
     }
 
