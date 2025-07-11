@@ -97,25 +97,45 @@ public class Main {
                     props.load(in);
                 }
                 String theme = props.getProperty("theme");
-                if ("light".equals(theme)) {
-                    FlatLightLaf.setup();
-                } else if ("dark".equals(theme)) {
+                if ("dark".equals(theme)) { // Check for dark first
                     FlatDarkLaf.setup();
+                } else { // Default to light for "light" or any other/missing value
+                    if (!"light".equals(theme)) { // If theme isn't explicitly light (e.g. it's null or invalid)
+                        props.setProperty("theme", "light"); // Set it to light
+                        if (!configDir.exists()) configDir.mkdirs(); // Should exist, but good practice
+                        try (FileOutputStream out = new FileOutputStream(configFile)) {
+                            props.store(out, "Theme configuration"); // Save the correction
+                        }
+                    }
+                    FlatLightLaf.setup();
                 }
             } else {
                 // Default to light theme on first run
                 FlatLightLaf.setup();
                 props.setProperty("theme", "light");
-                configDir.mkdirs();
+                if (!configDir.exists()) configDir.mkdirs(); // Ensure directory exists
                 try (FileOutputStream out = new FileOutputStream(configFile)) {
                     props.store(out, "Theme configuration");
                 }
             }
         } catch (Exception e) {
             e.printStackTrace();
+            // Fallback to light theme in case of any error during properties handling
             try {
-                FlatLightLaf.setup(); // Fallback to light
-            } catch (Exception ex) {
+                FlatLightLaf.setup();
+                // Attempt to also write a default config if error occurred, but be cautious
+                // This part could be risky if the error was file system related
+                File configDir = new File(System.getProperty("user.home") + "/.myapp");
+                File configFile = new File(configDir, "config.properties");
+                Properties props = new Properties();
+                props.setProperty("theme", "light");
+                if (!configDir.exists()) configDir.mkdirs();
+                try (FileOutputStream out = new FileOutputStream(configFile)) {
+                    props.store(out, "Theme configuration");
+                } catch (IOException ioEx) {
+                    System.err.println("Failed to write fallback theme config: " + ioEx.getMessage());
+                }
+            } catch (Exception ex) { // Catch potential errors from FlatLaf.setup()
                 ex.printStackTrace();
             }
         }
