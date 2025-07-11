@@ -81,42 +81,12 @@ public class MenuBar {
 
         // Light Theme option
         JMenuItem lightThemeItem = new JMenuItem("Light Theme");
-        lightThemeItem.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                try {
-                    UIManager.setLookAndFeel(new FlatLightLaf());
-                    for (Window window : Window.getWindows()) {
-                        SwingUtilities.updateComponentTreeUI(window);
-                    }
-                } catch (UnsupportedLookAndFeelException ex) {
-                    JOptionPane.showMessageDialog(parentFrame,
-                            "Failed to switch to light theme.",
-                            "Error",
-                            JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        });
+        lightThemeItem.addActionListener(e -> setTheme("light"));
         changeThemeMenu.add(lightThemeItem);
 
         // Dark Theme option
         JMenuItem darkThemeItem = new JMenuItem("Dark Theme");
-        darkThemeItem.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                try {
-                    UIManager.setLookAndFeel(new FlatDarkLaf());
-                    for (Window window : Window.getWindows()) {
-                        SwingUtilities.updateComponentTreeUI(window);
-                    }
-                } catch (UnsupportedLookAndFeelException ex) {
-                    JOptionPane.showMessageDialog(parentFrame,
-                            "Failed to switch to dark theme.",
-                            "Error",
-                            JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        });
+        darkThemeItem.addActionListener(e -> setTheme("dark"));
         changeThemeMenu.add(darkThemeItem);
 
 
