@@ -120,7 +120,15 @@ public class MenuBar {
 
         // Selection Color
         JMenuItem selectionColorItem = new JMenuItem("Selection Color");
-        selectionColorItem.addActionListener(e -> customizeColor("List.selectionBackground", "Choose Selection Color"));
+        selectionColorItem.addActionListener(e -> {
+            Color newColor = JColorChooser.showDialog(parentFrame, "Choose Selection Color", UIManager.getColor("List.selectionBackground"));
+            if (newColor != null) {
+                UIManager.put("List.selectionBackground", newColor);
+                // Automatically set a contrasting foreground color
+                UIManager.put("List.selectionForeground", ColorUtils.getContrastingTextColor(newColor));
+                updateAllWindowsUI();
+            }
+        });
         customizeColorsMenu.add(selectionColorItem);
 
         changeThemeMenu.add(customizeColorsMenu);
@@ -197,12 +205,37 @@ public class MenuBar {
             // Apply the new look and feel
             if ("light".equals(theme)) {
                 FlatLightLaf.setup();
+                // Ensure default selection foreground has good contrast
+                Color selectionBg = UIManager.getColor("List.selectionBackground");
+                if (selectionBg != null) {
+                    UIManager.put("List.selectionForeground", ColorUtils.getContrastingTextColor(selectionBg));
+                }
             } else if ("dark".equals(theme)) {
+                // Apply the base FlatDarkLaf
                 FlatDarkLaf.setup();
+
+                // Override specific colors to make it darker
+                Color darkerBackground = Color.decode("#303030"); // A darker charcoal
+                UIManager.put("Panel.background", darkerBackground);
+                UIManager.put("View.background", darkerBackground); // For JScrollPane viewport backgrounds
+                UIManager.put("List.background", darkerBackground);
+                UIManager.put("TextField.background", darkerBackground);
+                UIManager.put("TextArea.background", darkerBackground);
+                UIManager.put("Button.background", Color.decode("#424242")); // Slightly lighter for buttons
+                UIManager.put("Button.hoverBackground", Color.decode("#505050"));
+                UIManager.put("Button.pressedBackground", Color.decode("#585858"));
+
+                // Ensure default selection foreground has good contrast on the dark theme
+                Color selectionBg = UIManager.getColor("List.selectionBackground");
+                if (selectionBg != null) {
+                    UIManager.put("List.selectionForeground", ColorUtils.getContrastingTextColor(selectionBg));
+                }
             }
 
-            // Update the UI immediately
-            SwingUtilities.updateComponentTreeUI(parentFrame);
+            // Update the UI immediately for all windows
+            for (Window window : Window.getWindows()) {
+                SwingUtilities.updateComponentTreeUI(window);
+            }
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(parentFrame,

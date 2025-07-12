@@ -99,6 +99,22 @@ public class Main {
                 String theme = props.getProperty("theme");
                 if ("dark".equals(theme)) { // Check for dark first
                     FlatDarkLaf.setup();
+                    // Apply the same color overrides for a darker theme on startup
+                    Color darkerBackground = Color.decode("#303030");
+                    UIManager.put("Panel.background", darkerBackground);
+                    UIManager.put("View.background", darkerBackground);
+                    UIManager.put("List.background", darkerBackground);
+                    UIManager.put("TextField.background", darkerBackground);
+                    UIManager.put("TextArea.background", darkerBackground);
+                    UIManager.put("Button.background", Color.decode("#424242"));
+                    UIManager.put("Button.hoverBackground", Color.decode("#505050"));
+                    UIManager.put("Button.pressedBackground", Color.decode("#585858"));
+
+                    // Set contrasting selection text color on startup for dark theme
+                    Color selectionBg = UIManager.getColor("List.selectionBackground");
+                    if (selectionBg != null) {
+                        UIManager.put("List.selectionForeground", ColorUtils.getContrastingTextColor(selectionBg));
+                    }
                 } else { // Default to light for "light" or any other/missing value
                     if (!"light".equals(theme)) { // If theme isn't explicitly light (e.g. it's null or invalid)
                         props.setProperty("theme", "light"); // Set it to light
@@ -108,6 +124,11 @@ public class Main {
                         }
                     }
                     FlatLightLaf.setup();
+                    // Set contrasting selection text color on startup for light theme
+                    Color selectionBg = UIManager.getColor("List.selectionBackground");
+                    if (selectionBg != null) {
+                        UIManager.put("List.selectionForeground", ColorUtils.getContrastingTextColor(selectionBg));
+                    }
                 }
             } else {
                 // Default to light theme on first run
