@@ -129,6 +129,24 @@ public class Main {
                     props.store(out, "Theme configuration");
                 }
             }
+
+            // After setting theme, check for and apply custom selection color
+            if (configFile.exists()) {
+                // Re-read props to ensure we have the latest values
+                try (FileInputStream in = new FileInputStream(configFile)) {
+                    props.load(in);
+                }
+                String selectionColorHex = props.getProperty("selection.background");
+                if (selectionColorHex != null && selectionColorHex.matches("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$")) {
+                    try {
+                        Color selectionColor = Color.decode(selectionColorHex);
+                        UIManager.put("List.selectionBackground", selectionColor);
+                    } catch (NumberFormatException nfe) {
+                        System.err.println("Invalid color format in config file: " + selectionColorHex);
+                        // Don't apply color if format is wrong
+                    }
+                }
+            }
         } catch (Exception e) {
             e.printStackTrace();
             // Fallback to light theme in case of any error during properties handling
