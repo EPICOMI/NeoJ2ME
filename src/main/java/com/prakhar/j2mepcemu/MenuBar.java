@@ -120,15 +120,7 @@ public class MenuBar {
 
         // Selection Color
         JMenuItem selectionColorItem = new JMenuItem("Selection Color");
-        selectionColorItem.addActionListener(e -> {
-            Color newColor = JColorChooser.showDialog(parentFrame, "Choose Selection Color", UIManager.getColor("List.selectionBackground"));
-            if (newColor != null) {
-                UIManager.put("List.selectionBackground", newColor);
-                // Automatically set a contrasting foreground color
-                UIManager.put("List.selectionForeground", ColorUtils.getContrastingTextColor(newColor));
-                updateAllWindowsUI();
-            }
-        });
+        selectionColorItem.addActionListener(e -> customizeColor("List.selectionBackground", "Choose Selection Color"));
         customizeColorsMenu.add(selectionColorItem);
 
         changeThemeMenu.add(customizeColorsMenu);
@@ -205,11 +197,6 @@ public class MenuBar {
             // Apply the new look and feel
             if ("light".equals(theme)) {
                 FlatLightLaf.setup();
-                // Ensure default selection foreground has good contrast
-                Color selectionBg = UIManager.getColor("List.selectionBackground");
-                if (selectionBg != null) {
-                    UIManager.put("List.selectionForeground", ColorUtils.getContrastingTextColor(selectionBg));
-                }
             } else if ("dark".equals(theme)) {
                 // Apply the base FlatDarkLaf
                 FlatDarkLaf.setup();
@@ -225,11 +212,6 @@ public class MenuBar {
                 UIManager.put("Button.hoverBackground", Color.decode("#505050"));
                 UIManager.put("Button.pressedBackground", Color.decode("#585858"));
 
-                // Ensure default selection foreground has good contrast on the dark theme
-                Color selectionBg = UIManager.getColor("List.selectionBackground");
-                if (selectionBg != null) {
-                    UIManager.put("List.selectionForeground", ColorUtils.getContrastingTextColor(selectionBg));
-                }
             }
 
             // Update the UI immediately for all windows

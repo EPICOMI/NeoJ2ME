@@ -110,11 +110,6 @@ public class Main {
                     UIManager.put("Button.hoverBackground", Color.decode("#505050"));
                     UIManager.put("Button.pressedBackground", Color.decode("#585858"));
 
-                    // Set contrasting selection text color on startup for dark theme
-                    Color selectionBg = UIManager.getColor("List.selectionBackground");
-                    if (selectionBg != null) {
-                        UIManager.put("List.selectionForeground", ColorUtils.getContrastingTextColor(selectionBg));
-                    }
                 } else { // Default to light for "light" or any other/missing value
                     if (!"light".equals(theme)) { // If theme isn't explicitly light (e.g. it's null or invalid)
                         props.setProperty("theme", "light"); // Set it to light
@@ -124,11 +119,6 @@ public class Main {
                         }
                     }
                     FlatLightLaf.setup();
-                    // Set contrasting selection text color on startup for light theme
-                    Color selectionBg = UIManager.getColor("List.selectionBackground");
-                    if (selectionBg != null) {
-                        UIManager.put("List.selectionForeground", ColorUtils.getContrastingTextColor(selectionBg));
-                    }
                 }
             } else {
                 // Default to light theme on first run
