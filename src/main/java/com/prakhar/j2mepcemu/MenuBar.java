@@ -158,6 +158,34 @@ public class MenuBar {
         if (newColor != null) {
             UIManager.put(uiKey, newColor);
             updateAllWindowsUI();
+
+            // Save the color to config.properties
+            try {
+                Properties props = new Properties();
+                File configDir = new File(System.getProperty("user.home") + "/.myapp");
+                File configFile = new File(configDir, "config.properties");
+
+                if (configFile.exists()) {
+                    try (FileInputStream in = new FileInputStream(configFile)) {
+                        props.load(in);
+                    }
+                }
+
+                // Convert color to hex format #RRGGBB
+                String hexColor = String.format("#%02x%02x%02x", newColor.getRed(), newColor.getGreen(), newColor.getBlue());
+                props.setProperty("selection.background", hexColor);
+
+                if (!configDir.exists()) configDir.mkdirs();
+                try (FileOutputStream out = new FileOutputStream(configFile)) {
+                    props.store(out, "Configuration");
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(parentFrame,
+                        "Error saving color setting: " + e.getMessage(),
+                        "Error",
+                        JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 

@@ -42,4 +42,16 @@ task copyNativeLibs(type: Copy) {
     from 'emu-core/lib/SDL2.dll'
     into 'build/libs'
 }
-build.dependsOn copyNativeLibs
+tasks.withType(JavaCompile) {
+    options.compilerArgs += "-Xlint:unchecked"
+}
+
+tasks.named('distTar').configure {
+    dependsOn copyNativeLibs
+}
+tasks.named('distZip').configure {
+    dependsOn copyNativeLibs
+}
+tasks.named('startScripts').configure {
+    dependsOn copyNativeLibs
+}
