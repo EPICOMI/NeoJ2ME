@@ -44,8 +44,6 @@ public class Main {
     private static JPopupMenu gameListContextMenu; // New
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> createAndShowGUI());
-
     //   FlatLightLaf.setup();
 //        try {
 //            UIManager.setLookAndFeel(new FlatDarkLaf());
@@ -153,6 +151,7 @@ public class Main {
                 ex.printStackTrace();
             }
         }
+        SwingUtilities.invokeLater(() -> createAndShowGUI());
     }
 
     private static void createAndShowGUI() {
