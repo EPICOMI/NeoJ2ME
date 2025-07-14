@@ -44,8 +44,6 @@ public class Main {
     private static JPopupMenu gameListContextMenu; // New
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> createAndShowGUI());
-
     //   FlatLightLaf.setup();
 //        try {
 //            UIManager.setLookAndFeel(new FlatDarkLaf());
@@ -96,26 +94,40 @@ public class Main {
                 try (FileInputStream in = new FileInputStream(configFile)) {
                     props.load(in);
                 }
+
+                // Theme setup
                 String theme = props.getProperty("theme");
-                if ("dark".equals(theme)) { // Check for dark first
+                if ("dark".equals(theme)) {
                     FlatDarkLaf.setup();
-                } else { // Default to light for "light" or any other/missing value
-                    if (!"light".equals(theme)) { // If theme isn't explicitly light (e.g. it's null or invalid)
-                        props.setProperty("theme", "light"); // Set it to light
-                        if (!configDir.exists()) configDir.mkdirs(); // Should exist, but good practice
+                } else {
+                    if (!"light".equals(theme)) {
+                        props.setProperty("theme", "light");
+                        if (!configDir.exists()) configDir.mkdirs();
                         try (FileOutputStream out = new FileOutputStream(configFile)) {
-                            props.store(out, "Theme configuration"); // Save the correction
+                            props.store(out, "Configuration");
                         }
                     }
                     FlatLightLaf.setup();
                 }
+
+                // Custom selection color setup
+                String hexColor = props.getProperty("selection.background");
+                if (hexColor != null && hexColor.matches("^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$")) {
+                    try {
+                        Color selectionColor = Color.decode(hexColor);
+                        UIManager.put("List.selectionBackground", selectionColor);
+                    } catch (NumberFormatException nfe) {
+                        System.err.println("Invalid color format in config: " + hexColor);
+                    }
+                }
+
             } else {
                 // Default to light theme on first run
                 FlatLightLaf.setup();
                 props.setProperty("theme", "light");
-                if (!configDir.exists()) configDir.mkdirs(); // Ensure directory exists
+                if (!configDir.exists()) configDir.mkdirs();
                 try (FileOutputStream out = new FileOutputStream(configFile)) {
-                    props.store(out, "Theme configuration");
+                    props.store(out, "Configuration");
                 }
             }
         } catch (Exception e) {
@@ -139,6 +151,7 @@ public class Main {
                 ex.printStackTrace();
             }
         }
+        SwingUtilities.invokeLater(() -> createAndShowGUI());
     }
 
     private static void createAndShowGUI() {
