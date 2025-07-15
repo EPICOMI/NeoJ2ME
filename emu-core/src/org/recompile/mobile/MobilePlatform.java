@@ -77,6 +77,8 @@ public class MobilePlatform
 	public MIDletLoader loader;
 	public static Displayable displayable;
 
+	public org.recompile.freej2me.Config config;
+
 	public static boolean isPaused = false;
 
 	public String dataPath = "";
@@ -771,4 +773,11 @@ public class MobilePlatform
 	public boolean isJarLoaded() {
 	return loader != null; }
 
+	public org.recompile.freej2me.Config getConfig() {
+		return config;
+	}
+
+	public void setConfig(org.recompile.freej2me.Config config) {
+		this.config = config;
+	}
 }

@@ -81,7 +81,7 @@ public class RecordStore
 
 		appname = Mobile.getPlatform().loader.suitename;
 
-		String rmsDirectory = Mobile.getPlatform().config.sysSettings.get("rmsDirectory");
+		String rmsDirectory = Mobile.getPlatform().getConfig().sysSettings.get("rmsDirectory");
 		if (rmsDirectory == null || rmsDirectory.isEmpty()) {
 			rmsPath = Mobile.getPlatform().dataPath + "./rms/" + appname;
 		} else {
@@ -377,7 +377,7 @@ public class RecordStore
 		try
 		{
 			Mobile.log(Mobile.LOG_DEBUG, RecordStore.class.getPackage().getName() + "." + RecordStore.class.getSimpleName() + ": " + "Deleting RecordStore "+recordStoreName);
-			String rmsDirectory = Mobile.getPlatform().config.sysSettings.get("rmsDirectory");
+			String rmsDirectory = Mobile.getPlatform().getConfig().sysSettings.get("rmsDirectory");
 			String path;
 			if (rmsDirectory == null || rmsDirectory.isEmpty()) {
 				path = Mobile.getPlatform().dataPath + "./rms/" + Mobile.getPlatform().loader.suitename + "/" + recordStoreName;
@@ -493,7 +493,7 @@ public class RecordStore
 	{
 		Mobile.log(Mobile.LOG_DEBUG, RecordStore.class.getPackage().getName() + "." + RecordStore.class.getSimpleName() + ": " + "List Record Stores");
 		if (rmsPath == null) {
-			String rmsDirectory = Mobile.getPlatform().config.sysSettings.get("rmsDirectory");
+			String rmsDirectory = Mobile.getPlatform().getConfig().sysSettings.get("rmsDirectory");
 			if (rmsDirectory == null || rmsDirectory.isEmpty()) {
 				rmsPath = Mobile.getPlatform().dataPath + "./rms/" + Mobile.getPlatform().loader.suitename;
 			} else {

@@ -780,6 +780,7 @@ public class FreeJ2ME
 				}
 			};
 
+			platform.setConfig(Mobile.config);
 			awtGUI = new AWTGUI(Mobile.config);
 
 			constructFreeJ2MEGUI();
