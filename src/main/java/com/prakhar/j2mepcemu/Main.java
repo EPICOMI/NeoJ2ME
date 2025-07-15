@@ -24,6 +24,7 @@ import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
+import com.prakhar.j2mepcemu.SavesManager;
 import com.prakhar.j2mepcemu.IgnoredGamesConfig;
 import com.prakhar.j2mepcemu.PermanentlyRemovedGamesConfig; // New
 import java.io.IOException; // For handling exceptions from IgnoredGamesConfig
@@ -291,6 +292,63 @@ public class Main {
         });
         gameListContextMenu.add(temporaryRemoveItem); // Add the new item
 
+        JMenuItem exportItem = new JMenuItem("Export Save");
+        exportItem.addActionListener(e -> {
+            int selectedIndex = gameList.getSelectedIndex();
+            if (selectedIndex != -1) {
+                File gameFile = gameFiles.get(selectedIndex);
+                try {
+                    File savesDir = SavesManager.getSavesDirectory();
+                    String gameName = gameFile.getName().substring(0, gameFile.getName().lastIndexOf('.'));
+                    File gameSavesDir = new File(savesDir, gameName);
+
+                    if (gameSavesDir.exists()) {
+                        JFileChooser fileChooser = new JFileChooser();
+                        fileChooser.setDialogTitle("Export Save");
+                        fileChooser.setSelectedFile(new File(gameName + ".zip"));
+                        int userSelection = fileChooser.showSaveDialog(frame);
+
+                        if (userSelection == JFileChooser.APPROVE_OPTION) {
+                            File selectedFile = fileChooser.getSelectedFile();
+                            SavesManager.exportSaveChanges(gameSavesDir, selectedFile);
+                            JOptionPane.showMessageDialog(frame, "Saves exported successfully to " + selectedFile.getAbsolutePath());
+                        }
+                    } else {
+                        JOptionPane.showMessageDialog(frame, "No saves found for this game.");
+                    }
+                } catch (IOException ex) {
+                    JOptionPane.showMessageDialog(frame, "Error exporting saves: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+        gameListContextMenu.add(exportItem);
+
+        JMenuItem importItem = new JMenuItem("Import Save");
+        importItem.addActionListener(e -> {
+            int selectedIndex = gameList.getSelectedIndex();
+            if (selectedIndex != -1) {
+                File gameFile = gameFiles.get(selectedIndex);
+                try {
+                    JFileChooser fileChooser = new JFileChooser();
+                    fileChooser.setDialogTitle("Import Save");
+                    fileChooser.setFileFilter(new FileNameExtensionFilter("ZIP Files", "zip"));
+                    int userSelection = fileChooser.showOpenDialog(frame);
+
+                    if (userSelection == JFileChooser.APPROVE_OPTION) {
+                        File selectedFile = fileChooser.getSelectedFile();
+                        File savesDir = SavesManager.getSavesDirectory();
+                        String gameName = gameFile.getName().substring(0, gameFile.getName().lastIndexOf('.'));
+                        File gameSavesDir = new File(savesDir, gameName);
+                        SavesManager.importSaveChanges(selectedFile, gameSavesDir);
+                        JOptionPane.showMessageDialog(frame, "Saves imported successfully for " + gameFile.getName());
+                    }
+                } catch (IOException ex) {
+                    JOptionPane.showMessageDialog(frame, "Error importing saves: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+        gameListContextMenu.add(importItem);
+
         // Listener for showing the context menu
         gameList.addMouseListener(new MouseAdapter() {
             public void mousePressed(MouseEvent e) {
@@ -476,6 +534,10 @@ public class Main {
     }
 
     private static void launchGame(File gameFile) {
+        launchGame(gameFile, null);
+    }
+
+    private static void launchGame(File gameFile, File saveFile) {
         try {
             // Shut down previous emulator if active
             if (currentEmulator != null) {
@@ -484,7 +546,14 @@ public class Main {
             }
             String encodedPath = URLEncoder.encode(gameFile.getAbsolutePath().replace("\\", "/"), StandardCharsets.UTF_8.toString())
                     .replace("+", "%20");
-            String[] args = {"file:///" + encodedPath};
+            String[] args;
+            if (saveFile != null) {
+                String encodedSavePath = URLEncoder.encode(saveFile.getAbsolutePath().replace("\\", "/"), StandardCharsets.UTF_8.toString())
+                        .replace("+", "%20");
+                args = new String[]{"file:///" + encodedPath, "file:///" + encodedSavePath};
+            } else {
+                args = new String[]{"file:///" + encodedPath};
+            }
             currentEmulator = new FreeJ2ME(args);
         } catch (Exception e) {
             JOptionPane.showMessageDialog(frame, "Failed to launch game: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);

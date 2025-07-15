@@ -81,8 +81,12 @@ public class RecordStore
 
 		appname = Mobile.getPlatform().loader.suitename;
 
-		rmsPath = Mobile.getPlatform().dataPath + "./rms/"+appname;
-		rmsFile = Mobile.getPlatform().dataPath + "./rms/"+appname+"/"+name;
+		if (Mobile.saveFilePath != null) {
+			rmsPath = Mobile.saveFilePath;
+		} else {
+			rmsPath = Mobile.getPlatform().dataPath + "./rms/" + appname;
+		}
+		rmsFile = rmsPath + "/" + name;
 
 		try
 		{

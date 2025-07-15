@@ -756,6 +756,9 @@ public class FreeJ2ME
 	{
 		app = this;
 		try {
+			if (args.length >= 2) {
+				Mobile.saveFilePath = args[1];
+			}
 			if (args.length >= 3) {
 				Mobile.lcdWidth = Integer.parseInt(args[1]);
 				Mobile.lcdHeight = Integer.parseInt(args[2]);
