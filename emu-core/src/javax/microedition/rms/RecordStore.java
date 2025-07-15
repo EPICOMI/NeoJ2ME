@@ -81,8 +81,13 @@ public class RecordStore
 
 		appname = Mobile.getPlatform().loader.suitename;
 
-		rmsPath = Mobile.getPlatform().dataPath + "./rms/"+appname;
-		rmsFile = Mobile.getPlatform().dataPath + "./rms/"+appname+"/"+name;
+		String rmsDirectory = Mobile.getPlatform().config.sysSettings.get("rmsDirectory");
+		if (rmsDirectory == null || rmsDirectory.isEmpty()) {
+			rmsPath = Mobile.getPlatform().dataPath + "./rms/" + appname;
+		} else {
+			rmsPath = rmsDirectory + "/" + appname;
+		}
+		rmsFile = rmsPath + "/" + name;
 
 		try
 		{
@@ -372,7 +377,14 @@ public class RecordStore
 		try
 		{
 			Mobile.log(Mobile.LOG_DEBUG, RecordStore.class.getPackage().getName() + "." + RecordStore.class.getSimpleName() + ": " + "Deleting RecordStore "+recordStoreName);
-			File fstore = new File(Mobile.getPlatform().dataPath + "./rms/"+Mobile.getPlatform().loader.suitename+"/"+recordStoreName);
+			String rmsDirectory = Mobile.getPlatform().config.sysSettings.get("rmsDirectory");
+			String path;
+			if (rmsDirectory == null || rmsDirectory.isEmpty()) {
+				path = Mobile.getPlatform().dataPath + "./rms/" + Mobile.getPlatform().loader.suitename + "/" + recordStoreName;
+			} else {
+				path = rmsDirectory + "/" + Mobile.getPlatform().loader.suitename + "/" + recordStoreName;
+			}
+			File fstore = new File(path);
 			fstore.delete();
 		}
 		catch (Exception e)
@@ -480,14 +492,17 @@ public class RecordStore
 	public static String[] listRecordStores()
 	{
 		Mobile.log(Mobile.LOG_DEBUG, RecordStore.class.getPackage().getName() + "." + RecordStore.class.getSimpleName() + ": " + "List Record Stores");
-		if(rmsPath==null)
-		{
-			rmsPath = Mobile.getPlatform().dataPath + "./rms/"+Mobile.getPlatform().loader.name;
-			try
-			{
-				Files.createDirectories(Paths.get(rmsPath));
+		if (rmsPath == null) {
+			String rmsDirectory = Mobile.getPlatform().config.sysSettings.get("rmsDirectory");
+			if (rmsDirectory == null || rmsDirectory.isEmpty()) {
+				rmsPath = Mobile.getPlatform().dataPath + "./rms/" + Mobile.getPlatform().loader.suitename;
+			} else {
+				rmsPath = rmsDirectory + "/" + Mobile.getPlatform().loader.suitename;
 			}
-			catch (Exception e) { }
+			try {
+				Files.createDirectories(Paths.get(rmsPath));
+			} catch (Exception e) {
+			}
 		}
 		try
 		{

@@ -151,6 +151,7 @@ public class Config
 				sysSettings.put("deleteTempKJXFiles", "on");
 				sysSettings.put("dumpAudioStreams", "off");
 				sysSettings.put("dumpGraphicsObjects", "off");
+				sysSettings.put("rmsDirectory", "");
 				// AWT Inputs
 				updateAWTInputs();
 			}
@@ -219,6 +220,7 @@ public class Config
 			if(!sysSettings.containsKey("deleteTempKJXFiles")) { sysSettings.put("deleteTempKJXFiles", "on"); }
 			if(!sysSettings.containsKey("dumpAudioStreams")) { sysSettings.put("dumpAudioStreams", "off"); }
 			if(!sysSettings.containsKey("dumpGraphicsObjects")) { sysSettings.put("dumpGraphicsObjects", "off"); }
+			if(!sysSettings.containsKey("rmsDirectory")) { sysSettings.put("rmsDirectory", ""); }
 			// AWT Inputs
 			if(!sysSettings.containsKey("input_LeftSoft"))    { sysSettings.put("input_LeftSoft", ""     + inputKeycodes[0]); }
 			if(!sysSettings.containsKey("input_RightSoft"))   { sysSettings.put("input_RightSoft", ""    + inputKeycodes[1]); }
@@ -481,6 +483,14 @@ public class Config
 	{
 		Mobile.log(Mobile.LOG_DEBUG, Config.class.getPackage().getName() + "." + Config.class.getSimpleName() + ": " + "SysConfig: dumpGraphicsObjects "+value);
 		sysSettings.put("dumpGraphicsObjects", value);
+		saveConfig();
+		onChange.run();
+	}
+
+	public void updateRmsDirectory(String value)
+	{
+		Mobile.log(Mobile.LOG_DEBUG, Config.class.getPackage().getName() + "." + Config.class.getSimpleName() + ": " + "SysConfig: rmsDirectory "+value);
+		sysSettings.put("rmsDirectory", value);
 		saveConfig();
 		onChange.run();
 	}

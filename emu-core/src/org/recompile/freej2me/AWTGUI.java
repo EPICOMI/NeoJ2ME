@@ -41,9 +41,13 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyAdapter;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FilenameFilter;
-
 import java.util.Arrays;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 import org.recompile.mobile.Mobile;
 import org.recompile.mobile.MobilePlatform;
@@ -164,6 +168,9 @@ public final class AWTGUI
 
 	final MenuItem aboutMenuItem = new MenuItem("About FreeJ2ME");
 	final MenuItem resChangeMenuItem = new MenuItem("Change Phone Resolution");
+	final MenuItem setSaveDirMenuItem = new MenuItem("Set Save Directory");
+	final MenuItem exportSaveMenuItem = new MenuItem("Export Save Data");
+	final MenuItem importSaveMenuItem = new MenuItem("Import Save Data");
 
 	final MenuItem openMenuItem = new MenuItem("Open JAR / JAD / KJX File");
 	final MenuItem closeMenuItem = new MenuItem("Close Jar (Stub)");
@@ -465,6 +472,9 @@ public final class AWTGUI
 		exitMenuItem.setActionCommand("Exit");
 		aboutMenuItem.setActionCommand("AboutMenu");
 		resChangeMenuItem.setActionCommand("ChangeResolution");
+		setSaveDirMenuItem.setActionCommand("SetSaveDirectory");
+		exportSaveMenuItem.setActionCommand("ExportSave");
+		importSaveMenuItem.setActionCommand("ImportSave");
 		awtButtons[1].setActionCommand("ApplyResChange");
 		awtButtons[2].setActionCommand("CancelResChange");
 		awtButtons[0].setActionCommand("CloseAboutMenu");
@@ -483,6 +493,9 @@ public final class AWTGUI
 		exitMenuItem.addActionListener(menuItemListener);
 		aboutMenuItem.addActionListener(menuItemListener);
 		resChangeMenuItem.addActionListener(menuItemListener);
+		setSaveDirMenuItem.addActionListener(menuItemListener);
+		exportSaveMenuItem.addActionListener(menuItemListener);
+		importSaveMenuItem.addActionListener(menuItemListener);
 		awtButtons[1].addActionListener(menuItemListener);
 		awtButtons[2].addActionListener(menuItemListener);
 		awtButtons[0].addActionListener(menuItemListener);
@@ -859,6 +872,9 @@ public final class AWTGUI
 		fileMenu.add(openMenuItem);
 		fileMenu.add(closeMenuItem);
 		fileMenu.addSeparator();
+		fileMenu.add(importSaveMenuItem);
+		fileMenu.add(exportSaveMenuItem);
+		fileMenu.addSeparator();
 		fileMenu.add(scrShot);
 		fileMenu.add(pauseRes);
 		fileMenu.addSeparator();
@@ -871,6 +887,7 @@ public final class AWTGUI
 		optionMenu.add(useCustomMidi);
 		optionMenu.add(useCustomFont);
 		optionMenu.add(resChangeMenuItem);
+		optionMenu.add(setSaveDirMenuItem);
 		optionMenu.add(mapInputs);
 		optionMenu.add(phoneType);
 		optionMenu.add(backlightColor);
@@ -1040,7 +1057,106 @@ public final class AWTGUI
 
 			else if(a.getActionCommand() == "ChangeResolution") { awtDialogs[0].setLocationRelativeTo(main); awtDialogs[0].setVisible(true); }
 
-			else if(a.getActionCommand() == "ApplyResChange") 
+			else if(a.getActionCommand() == "ImportSave") {
+				if (fileLoaded) {
+					FileDialog filePicker = new FileDialog(main, "Import Save Data", FileDialog.LOAD);
+					filePicker.setFilenameFilter(new FilenameFilter() {
+						public boolean accept(File dir, String name) {
+							return name.toLowerCase().endsWith(".zip");
+						}
+					});
+					filePicker.setVisible(true);
+					String filename = filePicker.getFile();
+					if (filename != null) {
+						String zipFilePath = filePicker.getDirectory() + filename;
+						String rmsDirectory = Mobile.getPlatform().config.sysSettings.get("rmsDirectory");
+						String destDir;
+						if (rmsDirectory == null || rmsDirectory.isEmpty()) {
+							destDir = Mobile.getPlatform().dataPath + "./rms/" + Mobile.getPlatform().loader.suitename;
+						} else {
+							destDir = rmsDirectory + "/" + Mobile.getPlatform().loader.suitename;
+						}
+						try {
+							File destDirFile = new File(destDir);
+							if (!destDirFile.exists()) {
+								destDirFile.mkdirs();
+							}
+							FileInputStream fis = new FileInputStream(zipFilePath);
+							ZipInputStream zis = new ZipInputStream(fis);
+							ZipEntry zipEntry = zis.getNextEntry();
+							while (zipEntry != null) {
+								File newFile = new File(destDir, zipEntry.getName());
+								FileOutputStream fos = new FileOutputStream(newFile);
+								byte[] buffer = new byte[1024];
+								int len;
+								while ((len = zis.read(buffer)) > 0) {
+									fos.write(buffer, 0, len);
+								}
+								fos.close();
+								zipEntry = zis.getNextEntry();
+							}
+							zis.closeEntry();
+							zis.close();
+							fis.close();
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					}
+				}
+			}
+
+			else if(a.getActionCommand() == "ExportSave") {
+				if (fileLoaded) {
+					FileDialog filePicker = new FileDialog(main, "Export Save Data", FileDialog.SAVE);
+					filePicker.setFile(Mobile.getPlatform().loader.suitename + ".zip");
+					filePicker.setVisible(true);
+					String filename = filePicker.getFile();
+					if (filename != null) {
+						String zipFilePath = filePicker.getDirectory() + filename;
+						String rmsDirectory = Mobile.getPlatform().config.sysSettings.get("rmsDirectory");
+						String sourceDir;
+						if (rmsDirectory == null || rmsDirectory.isEmpty()) {
+							sourceDir = Mobile.getPlatform().dataPath + "./rms/" + Mobile.getPlatform().loader.suitename;
+						} else {
+							sourceDir = rmsDirectory + "/" + Mobile.getPlatform().loader.suitename;
+						}
+						try {
+							FileOutputStream fos = new FileOutputStream(zipFilePath);
+							ZipOutputStream zos = new ZipOutputStream(fos);
+							File sourceFile = new File(sourceDir);
+							if (sourceFile.exists() && sourceFile.isDirectory()) {
+								for (File file : sourceFile.listFiles()) {
+									zos.putNextEntry(new ZipEntry(file.getName()));
+									FileInputStream fis = new FileInputStream(file);
+									byte[] buffer = new byte[1024];
+									int length;
+									while ((length = fis.read(buffer)) > 0) {
+										zos.write(buffer, 0, length);
+									}
+									fis.close();
+									zos.closeEntry();
+								}
+							}
+							zos.close();
+							fos.close();
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					}
+				}
+			}
+
+			else if (a.getActionCommand() == "SetSaveDirectory") {
+				FileDialog filePicker = new FileDialog(main, "Set Save Directory", FileDialog.LOAD);
+				filePicker.setFile("select a directory");
+				filePicker.setVisible(true);
+				String filename = filePicker.getDirectory();
+				if (filename != null) {
+					config.updateRmsDirectory(filename);
+				}
+			}
+
+			else if(a.getActionCommand() == "ApplyResChange")
 			{
 				if(fileLoaded) /* Only update res if a jar was loaded, or else AWT throws NullPointerException */
 				{
