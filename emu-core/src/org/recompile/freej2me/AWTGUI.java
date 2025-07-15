@@ -1069,7 +1069,7 @@ public final class AWTGUI
 					String filename = filePicker.getFile();
 					if (filename != null) {
 						String zipFilePath = filePicker.getDirectory() + filename;
-						String rmsDirectory = this.config.sysSettings.get("rmsDirectory");
+						String rmsDirectory = config.sysSettings.get("rmsDirectory");
 						String destDir;
 						if (rmsDirectory == null || rmsDirectory.isEmpty()) {
 							destDir = Mobile.getPlatform().dataPath + "./rms/" + Mobile.getPlatform().loader.suitename;
@@ -1113,7 +1113,7 @@ public final class AWTGUI
 					String filename = filePicker.getFile();
 					if (filename != null) {
 						String zipFilePath = filePicker.getDirectory() + filename;
-						String rmsDirectory = this.config.sysSettings.get("rmsDirectory");
+						String rmsDirectory = config.sysSettings.get("rmsDirectory");
 						String sourceDir;
 						if (rmsDirectory == null || rmsDirectory.isEmpty()) {
 							sourceDir = Mobile.getPlatform().dataPath + "./rms/" + Mobile.getPlatform().loader.suitename;
