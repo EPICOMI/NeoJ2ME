@@ -1,7 +1,7 @@
-package com.prakhar.j2mepcemu;
+package com.mygameapp.neoj2me;
 
 import com.formdev.flatlaf.FlatLightLaf;
-import com.prakhar.j2mepcemu.MenuBar;
+import com.mygameapp.neoj2me.MenuBar;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.dnd.*;
@@ -24,8 +24,8 @@ import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
-import com.prakhar.j2mepcemu.IgnoredGamesConfig;
-import com.prakhar.j2mepcemu.PermanentlyRemovedGamesConfig; // New
+import com.mygameapp.neoj2me.IgnoredGamesConfig;
+import com.mygameapp.neoj2me.PermanentlyRemovedGamesConfig; // New
 import java.io.IOException; // For handling exceptions from IgnoredGamesConfig
 import org.recompile.freej2me.FreeJ2ME;
 import com.formdev.flatlaf.FlatDarkLaf;
@@ -33,7 +33,7 @@ import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
-import com.prakhar.j2mepcemu.saveGameConfig;
+import com.mygameapp.neoj2me.saveGameConfig;
 
 public class Main {
     private static JFrame frame;

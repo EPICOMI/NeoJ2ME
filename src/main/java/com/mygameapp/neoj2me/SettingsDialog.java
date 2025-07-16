@@ -1,4 +1,4 @@
-package com.prakhar.j2mepcemu;
+package com.mygameapp.neoj2me;
 
 import javax.swing.*;
 import java.awt.*;
@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.io.IOException; // Added for exception handling
 // Ensure com.prakhar.j2mepcemu.GameDirectoryConfig is implicitly available or import it if in different package.
-import com.prakhar.j2mepcemu.PermanentlyRemovedGamesConfig; // New
+
 
 public class SettingsDialog extends JDialog {
 

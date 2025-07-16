@@ -1,4 +1,4 @@
-package com.prakhar.j2mepcemu;
+package com.mygameapp.neoj2me;
 
 import java.io.*;
 import java.nio.file.Files;
