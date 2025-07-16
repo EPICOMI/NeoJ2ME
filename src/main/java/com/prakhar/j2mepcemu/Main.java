@@ -156,7 +156,7 @@ public class Main {
     }
 
     private static void createAndShowGUI() {
-        frame = new JFrame("FreeJ2ME Frontend");
+        frame = new JFrame("NeoJ2ME");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(400, 300);
         frame.setLayout(new BorderLayout());
@@ -168,7 +168,7 @@ public class Main {
         frame.add(scrollPane, BorderLayout.CENTER);
 
         dragDropLabel = new JLabel("Drag and drop JAR files here", SwingConstants.CENTER);
-        dragDropLabel.setOpaque(true);
+        dragDropLabel.setOpaque(false);
         dragDropLabel.setBackground(Color.LIGHT_GRAY);
 
         JButton importButton = new JButton("Import Game(s)");
