@@ -33,6 +33,7 @@ import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
+import com.prakhar.j2mepcemu.saveGameConfig;
 
 public class Main {
     private static JFrame frame;
@@ -290,6 +291,21 @@ public class Main {
             }
         });
         gameListContextMenu.add(temporaryRemoveItem); // Add the new item
+
+        saveGameConfig config = new saveGameConfig();
+
+        // "Export Saved Game Data" menu item
+        JMenuItem exportDataItem = new JMenuItem("Export Saved Game Data");
+        exportDataItem.addActionListener(e -> config.exportGameSave(gameList, frame, listModel, gameFiles));
+        gameListContextMenu.add(exportDataItem);
+
+        // "Import Saved Game Data" menu item
+        JMenuItem importDataItem = new JMenuItem("Import Saved Game Data");
+        importDataItem.addActionListener(e -> config.importGameSave(gameList, frame, listModel, gameFiles));
+        gameListContextMenu.add(importDataItem);
+
+
+
 
         // Listener for showing the context menu
         gameList.addMouseListener(new MouseAdapter() {
